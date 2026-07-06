@@ -1,0 +1,30 @@
+{
+  "FacilityId": "10001",
+  "FacilityName": "RPST Sample",
+  "District": "Mueang",
+  "Province": "Sample Province",
+  "CentralApiUrl": "https://central.example.go.th/api/v1/etl/summary",
+  "JwtSecret": "change_this_to_the_same_secret_as_central_api",
+  "JwtIssuer": "rpst-etl",
+  "JwtAudience": "rpst-central-api",
+  "DataSourceKind": "odbc",
+  "OdbcConnectionString": "DSN=JHCIS;UID=readonly_user;PWD=readonly_password;",
+  "Sql": {
+    "TotalVisits": "SELECT COUNT(*) FROM <visit_table> WHERE <visit_date_column> = ?",
+    "UniquePatients": "SELECT COUNT(DISTINCT <person_or_patient_id_column>) FROM <visit_table> WHERE <visit_date_column> = ?",
+    "ChronicFollowups": "SELECT COUNT(*) FROM <visit_table> WHERE <visit_date_column> = ? AND <clinic_or_service_column> IN (<chronic_values>)",
+    "NcdDmPatients": "SELECT COUNT(DISTINCT <person_or_patient_id_column>) FROM <diagnosis_table> WHERE <diagnosis_date_column> = ? AND <icd10_column> LIKE 'E1%'",
+    "NcdHtPatients": "SELECT COUNT(DISTINCT <person_or_patient_id_column>) FROM <diagnosis_table> WHERE <diagnosis_date_column> = ? AND <icd10_column> LIKE 'I1%'",
+    "NcdDmHtPatients": "SELECT COUNT(DISTINCT <person_or_patient_id_column>) FROM <diagnosis_table> WHERE <diagnosis_date_column> = ? AND (<icd10_column> LIKE 'E1%' OR <icd10_column> LIKE 'I1%')",
+    "NcdBpScreened": "SELECT COUNT(DISTINCT <person_or_patient_id_column>) FROM <visit_table> WHERE <visit_date_column> = ? AND (<sbp_column> IS NOT NULL OR <dbp_column> IS NOT NULL)",
+    "NcdFbsScreened": "SELECT COUNT(DISTINCT <person_or_patient_id_column>) FROM <lab_table> WHERE <lab_date_column> = ? AND <lab_name_or_code_column> IN (<fbs_lab_codes>)",
+    "MissingDiagnosis": "SELECT COUNT(*) FROM <visit_table> v LEFT JOIN <diagnosis_table> d ON d.<visit_key> = v.<visit_key> WHERE v.<visit_date_column> = ? AND d.<visit_key> IS NULL",
+    "AncVisits": "SELECT COUNT(*) FROM <anc_or_visit_table> WHERE <date_column> = ?",
+    "VaccineVisits": "SELECT COUNT(*) FROM <vaccine_or_epi_table> WHERE <date_column> = ?",
+    "HomeVisits": "SELECT COUNT(*) FROM <home_visit_table> WHERE <date_column> = ?",
+    "ReferOut": "SELECT COUNT(*) FROM <refer_table> WHERE <refer_date_column> = ?",
+    "EmergencyCases": "SELECT COUNT(*) FROM <visit_table> WHERE <visit_date_column> = ? AND <er_or_emergency_column> = <emergency_value>"
+  },
+  "ReportDate": "",
+  "LogRetentionDays": 30
+}

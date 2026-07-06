@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RPST Data Warehouse Dashboard</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Provincial Public Health Office</p>
+          <h1>ภาพรวมข้อมูล รพ.สต.</h1>
+        </div>
+        <div class="toolbar">
+          <input id="reportDate" type="date" aria-label="report date" />
+          <button id="refreshButton" type="button">Refresh</button>
+        </div>
+      </header>
+
+      <section class="metrics" aria-label="summary metrics">
+        <article>
+          <span>รายงานแล้ว</span>
+          <strong id="reportedFacilities">0/90</strong>
+        </article>
+        <article>
+          <span>ผู้รับบริการ</span>
+          <strong id="totalVisits">0</strong>
+        </article>
+        <article>
+          <span>ผู้ป่วยไม่ซ้ำ</span>
+          <strong id="uniquePatients">0</strong>
+        </article>
+        <article>
+          <span>NCD DM/HT</span>
+          <strong id="ncdDmHtPatients">0</strong>
+        </article>
+        <article>
+          <span>DM</span>
+          <strong id="ncdDmPatients">0</strong>
+        </article>
+        <article>
+          <span>HT</span>
+          <strong id="ncdHtPatients">0</strong>
+        </article>
+        <article>
+          <span>BP Screen</span>
+          <strong id="ncdBpScreened">0</strong>
+        </article>
+        <article>
+          <span>FBS Screen</span>
+          <strong id="ncdFbsScreened">0</strong>
+        </article>
+        <article>
+          <span>Missing Dx</span>
+          <strong id="missingDiagnosis">0</strong>
+        </article>
+        <article>
+          <span>ส่งต่อ</span>
+          <strong id="referOut">0</strong>
+        </article>
+        <article>
+          <span>ฉุกเฉิน</span>
+          <strong id="emergencyCases">0</strong>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title">
+          <h2>สถานะรายหน่วยบริการ</h2>
+          <span id="statusText">Loading</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>รหัส</th>
+                <th>หน่วยบริการ</th>
+                <th>วันที่ข้อมูล</th>
+                <th>ผู้รับบริการ</th>
+                <th>เรื้อรัง</th>
+                <th>NCD DM/HT</th>
+                <th>DM</th>
+                <th>HT</th>
+                <th>BP</th>
+                <th>FBS</th>
+                <th>Missing Dx</th>
+                <th>ANC</th>
+                <th>วัคซีน</th>
+                <th>เยี่ยมบ้าน</th>
+                <th>รับเข้าล่าสุด</th>
+              </tr>
+            </thead>
+            <tbody id="facilityRows"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+    <script src="./app.js"></script>
+  </body>
+</html>
