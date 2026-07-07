@@ -11,13 +11,16 @@ param(
   [string]$JwtSecret = "change_this_to_a_long_random_secret",
   [string]$JwtIssuer = "rpst-etl",
   [string]$JwtAudience = "rpst-central-api",
-  [string]$MySqlClientPath = ""
+  [string]$MySqlClientPath = "",
+  [string]$WorkDir = ""
 )
 
 $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RootDir = Split-Path -Parent $ScriptDir
-$WorkDir = Join-Path $RootDir "..\..\work"
+if ([string]::IsNullOrWhiteSpace($WorkDir)) {
+  $WorkDir = Join-Path $RootDir "..\..\work"
+}
 $WorkDir = [System.IO.Path]::GetFullPath($WorkDir)
 New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
 
