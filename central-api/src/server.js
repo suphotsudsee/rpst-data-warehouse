@@ -281,6 +281,60 @@ app.get("/api/v1/dashboard/facilities/range", async (req, res) => {
   res.json({ start_date: startDate, end_date: endDate, facilities: result.rows });
 });
 
+app.get("/api/v1/dashboard/disease-groups/range", async (req, res) => {
+  const startDate = typeof req.query.start_date === "string" ? req.query.start_date : null;
+  const endDate = typeof req.query.end_date === "string" ? req.query.end_date : null;
+
+  if (!startDate || !endDate) {
+    return res.status(400).json({ error: "start_date_and_end_date_required" });
+  }
+
+  const result = await query(
+    `WITH disease_groups AS (
+       SELECT
+         item.key,
+         SUM(CASE WHEN item.value ~ '^[0-9]+$' THEN item.value::int ELSE 0 END)::int AS patients
+       FROM facility_daily_summaries s
+       CROSS JOIN LATERAL jsonb_each_text(COALESCE(s.payload->'disease_groups', '{}'::jsonb)) AS item(key, value)
+       WHERE s.report_date BETWEEN $1::date AND $2::date
+       GROUP BY item.key
+     ),
+     column_totals AS (
+       SELECT
+         COALESCE(SUM(ncd_dm_patients), 0)::int AS diabetes,
+         COALESCE(SUM(ncd_ht_patients), 0)::int AS hypertension
+       FROM facility_daily_summaries
+       WHERE report_date BETWEEN $1::date AND $2::date
+     )
+     SELECT
+       disease_key,
+       disease_label,
+       CASE
+         WHEN labels.disease_key = 'diabetes' THEN GREATEST(COALESCE(disease_groups.patients, 0), column_totals.diabetes)
+         WHEN labels.disease_key = 'hypertension' THEN GREATEST(COALESCE(disease_groups.patients, 0), column_totals.hypertension)
+         ELSE COALESCE(disease_groups.patients, 0)
+       END::int AS patients
+     FROM (VALUES
+       ('dyslipidemia', 'ไขมันในเลือดสูง', 1),
+       ('vaping_lung_injury', 'ปอดอักเสบจากการสูบบุหรี่ไฟฟ้า', 2),
+       ('coronary_artery_disease', 'หลอดเลือดหัวใจ', 3),
+       ('stroke', 'หลอดเลือดสมอง', 4),
+       ('mental_health', 'สุขภาพจิต', 5),
+       ('cancer', 'มะเร็งทุกชนิด', 6),
+       ('diabetes', 'เบาหวาน', 7),
+       ('pertussis', 'ไอควาย', 8),
+       ('hypertension', 'ความดันโลหิตสูง', 9),
+       ('copd_emphysema', 'ถุงลมโป่งพองเรื้อรัง', 10)
+     ) AS labels(disease_key, disease_label, sort_order)
+     CROSS JOIN column_totals
+     LEFT JOIN disease_groups ON disease_groups.key = labels.disease_key
+     ORDER BY labels.sort_order`,
+    [startDate, endDate]
+  );
+
+  res.json({ start_date: startDate, end_date: endDate, data: result.rows });
+});
+
 app.get("/api/v1/dashboard/available-years", async (_req, res) => {
   const result = await query(
     `SELECT DISTINCT (EXTRACT(YEAR FROM report_date)::int + 543) AS calendar_year

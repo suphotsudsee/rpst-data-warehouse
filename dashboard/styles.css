@@ -255,6 +255,10 @@ button {
   padding: 16px;
 }
 
+.disease-panel {
+  margin-bottom: 14px;
+}
+
 .panel-title {
   display: flex;
   align-items: center;

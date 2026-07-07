@@ -26,6 +26,19 @@ const formatNumber = (value) => new Intl.NumberFormat("th-TH").format(Number(val
 const formatDateTime = (value) => (value ? new Date(value).toLocaleString("th-TH") : "-");
 const compactDate = (value) => new Date(value).toLocaleDateString("th-TH", { month: "short", day: "numeric" });
 
+const diseaseGroupLabels = [
+  "ไขมันในเลือดสูง",
+  "ปอดอักเสบจากการสูบบุหรี่ไฟฟ้า",
+  "หลอดเลือดหัวใจ",
+  "หลอดเลือดสมอง",
+  "สุขภาพจิต",
+  "มะเร็งทุกชนิด",
+  "เบาหวาน",
+  "ไอควาย",
+  "ความดันโลหิตสูง",
+  "ถุงลมโป่งพองเรื้อรัง"
+];
+
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
     "&": "&amp;",
@@ -179,6 +192,79 @@ function drawHorizontalBars(canvas, items) {
     ctx.fillStyle = palette.text;
     ctx.textAlign = "left";
     ctx.fillText(formatNumber(item.value), left + barW + 8, y + 12);
+  });
+}
+
+function drawDiseaseBars(canvas, items) {
+  const { ctx, width, height } = setupCanvas(canvas);
+  ctx.clearRect(0, 0, width, height);
+  const rows = items.map((item) => ({ ...item, value: Number(item.value || 0) }));
+  const max = Math.max(...rows.map((item) => item.value), 0);
+  if (!rows.length) {
+    drawNoData(ctx, width, height);
+    return;
+  }
+
+  const padding = { top: 18, right: 18, bottom: 34, left: Math.min(210, Math.max(142, width * 0.34)) };
+  const chartW = Math.max(1, width - padding.left - padding.right);
+  const chartH = height - padding.top - padding.bottom;
+  const rowH = chartH / rows.length;
+  const barH = Math.min(25, rowH * 0.72);
+  const axisMax = Math.ceil(max / 100000) * 100000 || 1;
+
+  ctx.strokeStyle = palette.line;
+  ctx.fillStyle = palette.muted;
+  ctx.font = "11px Arial";
+  ctx.textAlign = "center";
+  for (let i = 0; i <= 3; i++) {
+    const value = axisMax * (i / 3);
+    const x = padding.left + chartW * (i / 3);
+    ctx.beginPath();
+    ctx.moveTo(x, padding.top);
+    ctx.lineTo(x, height - padding.bottom);
+    ctx.stroke();
+    ctx.fillText(formatNumber(Math.round(value)), x, height - 10);
+  }
+
+  ctx.strokeStyle = "#b8c4d4";
+  ctx.beginPath();
+  ctx.moveTo(padding.left, padding.top - 4);
+  ctx.lineTo(padding.left, height - padding.bottom + 4);
+  ctx.stroke();
+
+  rows.forEach((item, index) => {
+    const y = padding.top + index * rowH + (rowH - barH) / 2;
+    const barW = chartW * (item.value / axisMax);
+    const visibleBarW = item.value > 0 ? Math.max(barW, 2) : 0;
+    const radius = Math.min(8, barH / 2, visibleBarW / 2);
+
+    ctx.fillStyle = palette.text;
+    ctx.font = "12px Arial";
+    ctx.textAlign = "right";
+    ctx.fillText(item.label, padding.left - 10, y + barH * 0.68);
+
+    if (visibleBarW > 0) {
+      ctx.fillStyle = palette.blue;
+      ctx.beginPath();
+      ctx.moveTo(padding.left + radius, y);
+      ctx.lineTo(padding.left + visibleBarW - radius, y);
+      ctx.quadraticCurveTo(padding.left + visibleBarW, y, padding.left + visibleBarW, y + radius);
+      ctx.lineTo(padding.left + visibleBarW, y + barH - radius);
+      ctx.quadraticCurveTo(padding.left + visibleBarW, y + barH, padding.left + visibleBarW - radius, y + barH);
+      ctx.lineTo(padding.left + radius, y + barH);
+      ctx.quadraticCurveTo(padding.left, y + barH, padding.left, y + barH - radius);
+      ctx.lineTo(padding.left, y + radius);
+      ctx.quadraticCurveTo(padding.left, y, padding.left + radius, y);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = item.value > axisMax * 0.12 ? "#1f3b57" : palette.text;
+    ctx.font = "10px Arial";
+    ctx.textAlign = item.value > axisMax * 0.12 ? "right" : "left";
+    const labelX = item.value > axisMax * 0.12
+      ? padding.left + visibleBarW - 8
+      : padding.left + visibleBarW + 6;
+    ctx.fillText(formatNumber(item.value), labelX, y + barH * 0.65);
   });
 }
 
@@ -345,9 +431,11 @@ async function loadOverview() {
   const end = reportDate || range.end;
 
   statusText.textContent = "Loading";
-  const [trends, facilityRange] = await Promise.all([
+  const [trends, facilityRange, diseaseGroups] = await Promise.all([
     fetchJson(`${apiBaseUrl}/api/v1/dashboard/trends?start_date=${start}&end_date=${end}`),
-    fetchJson(`${apiBaseUrl}/api/v1/dashboard/facilities/range?start_date=${start}&end_date=${end}`)
+    fetchJson(`${apiBaseUrl}/api/v1/dashboard/facilities/range?start_date=${start}&end_date=${end}`),
+    fetchJson(`${apiBaseUrl}/api/v1/dashboard/disease-groups/range?start_date=${start}&end_date=${end}`)
+      .catch(() => ({ data: diseaseGroupLabels.map((label) => ({ disease_label: label, patients: 0 })) }))
   ]);
 
   const trendRows = trends.data || [];
@@ -372,6 +460,9 @@ async function loadOverview() {
   document.getElementById("trendCaption").textContent = reportDate
     ? `Visits และ NCD วันที่ ${compactDate(reportDate)}`
     : `Visits และ NCD รายวัน ${range.label}`;
+  document.getElementById("diseaseCaption").textContent = reportDate
+    ? `จำนวนผู้ป่วยตามกลุ่มโรค วันที่ ${compactDate(reportDate)}`
+    : `จำนวนผู้ป่วยตามกลุ่มโรค ${range.label}`;
 
   const ncdItems = [
     { label: "DM", value: totals.ncd_dm_patients, color: palette.red },
@@ -394,6 +485,12 @@ async function loadOverview() {
       label: facility.facility_name || facility.facility_id,
       value: Number(facility.total_visits || 0),
       color: palette.blue
+    }))
+  );
+  drawDiseaseBars(document.getElementById("diseaseGroupBar"),
+    (diseaseGroups.data || []).map((item) => ({
+      label: item.disease_label,
+      value: Number(item.patients || 0)
     }))
   );
 
