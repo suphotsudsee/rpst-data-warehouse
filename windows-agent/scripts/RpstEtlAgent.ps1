@@ -83,6 +83,23 @@ function Invoke-OdbcScalar {
   }
 }
 
+function Invoke-OptionalOdbcScalar {
+  param(
+    $SqlConfig,
+    [string]$Name,
+    [string]$ConnectionString,
+    [string]$ReportDate
+  )
+  if ($null -eq $SqlConfig -or -not ($SqlConfig.PSObject.Properties.Name -contains $Name)) {
+    return 0
+  }
+  $query = $SqlConfig.$Name
+  if ([string]::IsNullOrWhiteSpace($query)) {
+    return 0
+  }
+  return Invoke-OdbcScalar $ConnectionString $query $ReportDate
+}
+
 function Get-SampleMetrics {
   param([string]$ReportDate)
   $seed = [Math]::Abs($ReportDate.GetHashCode()) % 100
@@ -101,6 +118,18 @@ function Get-SampleMetrics {
     home_visits = 1 + ($seed % 6)
     refer_out = $seed % 5
     emergency_cases = $seed % 3
+    disease_groups = @{
+      dyslipidemia = 0
+      vaping_lung_injury = 0
+      coronary_artery_disease = 0
+      stroke = 0
+      mental_health = 0
+      cancer = 0
+      diabetes = 8 + ($seed % 15)
+      pertussis = 0
+      hypertension = 12 + ($seed % 18)
+      copd_emphysema = 0
+    }
   }
 }
 
@@ -122,6 +151,18 @@ function Get-OdbcMetrics {
     home_visits = Invoke-OdbcScalar $Config.OdbcConnectionString $sql.HomeVisits $ReportDate
     refer_out = Invoke-OdbcScalar $Config.OdbcConnectionString $sql.ReferOut $ReportDate
     emergency_cases = Invoke-OdbcScalar $Config.OdbcConnectionString $sql.EmergencyCases $ReportDate
+    disease_groups = @{
+      dyslipidemia = Invoke-OptionalOdbcScalar $sql "DiseaseDyslipidemia" $Config.OdbcConnectionString $ReportDate
+      vaping_lung_injury = Invoke-OptionalOdbcScalar $sql "DiseaseVapingLungInjury" $Config.OdbcConnectionString $ReportDate
+      coronary_artery_disease = Invoke-OptionalOdbcScalar $sql "DiseaseCoronaryArtery" $Config.OdbcConnectionString $ReportDate
+      stroke = Invoke-OptionalOdbcScalar $sql "DiseaseStroke" $Config.OdbcConnectionString $ReportDate
+      mental_health = Invoke-OptionalOdbcScalar $sql "DiseaseMentalHealth" $Config.OdbcConnectionString $ReportDate
+      cancer = Invoke-OptionalOdbcScalar $sql "DiseaseCancer" $Config.OdbcConnectionString $ReportDate
+      diabetes = Invoke-OptionalOdbcScalar $sql "DiseaseDiabetes" $Config.OdbcConnectionString $ReportDate
+      pertussis = Invoke-OptionalOdbcScalar $sql "DiseasePertussis" $Config.OdbcConnectionString $ReportDate
+      hypertension = Invoke-OptionalOdbcScalar $sql "DiseaseHypertension" $Config.OdbcConnectionString $ReportDate
+      copd_emphysema = Invoke-OptionalOdbcScalar $sql "DiseaseCopdEmphysema" $Config.OdbcConnectionString $ReportDate
+    }
   }
 }
 
@@ -186,6 +227,7 @@ try {
       source = $config.DataSourceKind
       schema_version = "1.0"
       generated_by = "rpst-windows-agent"
+      disease_groups = $metrics.disease_groups
     }
   } | ConvertTo-Json -Depth 5
 

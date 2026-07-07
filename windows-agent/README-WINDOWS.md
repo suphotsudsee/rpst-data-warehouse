@@ -48,6 +48,17 @@
 
 SQL ในไฟล์ตัวอย่างเป็นโครงเริ่มต้น ต้องปรับชื่อ table/field ให้ตรงกับฐานจริงของแต่ละจังหวัดหรือระบบหน้างาน
 
+ตัวอย่างสำหรับ API บน Coolify:
+
+```json
+"CentralApiUrl": "http://s14gjbvbsnmq1r2v3ujwh8nu.110.164.222.217.sslip.io/api/v1/etl/summary",
+"JwtSecret": "change_this_to_a_long_random_secret",
+"JwtIssuer": "rpst-etl",
+"JwtAudience": "rpst-central-api"
+```
+
+SQL กลุ่ม `Disease...` ใช้เติมกราฟกลุ่มโรคสำคัญใน dashboard ถ้ายังไม่พร้อมสามารถปล่อยไว้ได้ ระบบจะส่งค่าเป็น `0` สำหรับ query ที่ไม่มีใน config
+
 ## การดูผลลัพธ์
 
 ไฟล์ log อยู่ในโฟลเดอร์ `logs`

@@ -23,7 +23,17 @@
     "VaccineVisits": "SELECT COUNT(*) FROM visitepi e WHERE e.dateepi = ?",
     "HomeVisits": "SELECT COUNT(DISTINCT h.pcucode, h.visitno) FROM visithomehealthindividual h JOIN visit v ON v.pcucode = h.pcucode AND v.visitno = h.visitno WHERE v.visitdate = ?",
     "ReferOut": "SELECT COUNT(*) FROM visitrefer r WHERE DATE(r.datetimerefer) = ?",
-    "EmergencyCases": "SELECT COUNT(*) FROM visit v WHERE v.visitdate = ? AND v.typein = '4'"
+    "EmergencyCases": "SELECT COUNT(*) FROM visit v WHERE v.visitdate = ? AND v.typein = '4'",
+    "DiseaseDyslipidemia": "SELECT COUNT(DISTINCT v.pcucodeperson, v.pid) FROM visit v JOIN visitdiag d ON d.pcucode = v.pcucode AND d.visitno = v.visitno WHERE v.visitdate = ? AND d.diagcode REGEXP '^E78'",
+    "DiseaseVapingLungInjury": "SELECT COUNT(DISTINCT v.pcucodeperson, v.pid) FROM visit v JOIN visitdiag d ON d.pcucode = v.pcucode AND d.visitno = v.visitno WHERE v.visitdate = ? AND (d.diagcode REGEXP '^U07\\\\.0' OR d.diagcode REGEXP '^J68\\\\.0' OR d.diagcode REGEXP '^J69\\\\.1')",
+    "DiseaseCoronaryArtery": "SELECT COUNT(DISTINCT v.pcucodeperson, v.pid) FROM visit v JOIN visitdiag d ON d.pcucode = v.pcucode AND d.visitno = v.visitno WHERE v.visitdate = ? AND d.diagcode REGEXP '^I2[0-5]'",
+    "DiseaseStroke": "SELECT COUNT(DISTINCT v.pcucodeperson, v.pid) FROM visit v JOIN visitdiag d ON d.pcucode = v.pcucode AND d.visitno = v.visitno WHERE v.visitdate = ? AND d.diagcode REGEXP '^I6[0-9]'",
+    "DiseaseMentalHealth": "SELECT COUNT(DISTINCT v.pcucodeperson, v.pid) FROM visit v JOIN visitdiag d ON d.pcucode = v.pcucode AND d.visitno = v.visitno WHERE v.visitdate = ? AND d.diagcode REGEXP '^F[0-9][0-9]'",
+    "DiseaseCancer": "SELECT COUNT(DISTINCT v.pcucodeperson, v.pid) FROM visit v JOIN visitdiag d ON d.pcucode = v.pcucode AND d.visitno = v.visitno WHERE v.visitdate = ? AND (d.diagcode REGEXP '^C[0-9][0-9]' OR d.diagcode REGEXP '^D0[0-9]' OR d.diagcode REGEXP '^D[1-3][0-9]' OR d.diagcode REGEXP '^D4[0-8]')",
+    "DiseaseDiabetes": "SELECT COUNT(DISTINCT v.pcucodeperson, v.pid) FROM visit v JOIN visitdiag d ON d.pcucode = v.pcucode AND d.visitno = v.visitno WHERE v.visitdate = ? AND d.diagcode REGEXP '^E1[0-4]'",
+    "DiseasePertussis": "SELECT COUNT(DISTINCT v.pcucodeperson, v.pid) FROM visit v JOIN visitdiag d ON d.pcucode = v.pcucode AND d.visitno = v.visitno WHERE v.visitdate = ? AND d.diagcode REGEXP '^A37'",
+    "DiseaseHypertension": "SELECT COUNT(DISTINCT v.pcucodeperson, v.pid) FROM visit v JOIN visitdiag d ON d.pcucode = v.pcucode AND d.visitno = v.visitno WHERE v.visitdate = ? AND d.diagcode REGEXP '^I1[0-5]'",
+    "DiseaseCopdEmphysema": "SELECT COUNT(DISTINCT v.pcucodeperson, v.pid) FROM visit v JOIN visitdiag d ON d.pcucode = v.pcucode AND d.visitno = v.visitno WHERE v.visitdate = ? AND (d.diagcode REGEXP '^J43' OR d.diagcode REGEXP '^J44')"
   },
   "ReportDate": "",
   "LogRetentionDays": 30
