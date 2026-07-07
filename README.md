@@ -16,7 +16,7 @@
 2. เปิดระบบกลาง
 
 ```powershell
-docker compose up -d --build central-db central-api dashboard
+docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build central-db central-api dashboard
 ```
 
 3. ส่งข้อมูลตัวอย่างจาก ETL agent
@@ -26,6 +26,15 @@ docker compose --profile etl-sample run --rm etl-agent-sample
 ```
 
 4. เปิด Dashboard ที่ `http://localhost:8088`
+
+## Deploy บน Coolify
+
+ใช้ `docker-compose.yml` หลักโดยตรง ไม่ต้องใช้ `docker-compose.local.yml`
+
+- ตั้ง public domain ให้ service `dashboard` ที่ port `80`
+- ตั้ง public domain ให้ service `central-api` ที่ port `8080` เฉพาะกรณีต้องให้ Windows agent หรือ import script ส่งข้อมูลเข้า API จากภายนอก
+- ตั้งค่า environment production อย่างน้อย `POSTGRES_PASSWORD` และ `JWT_SECRET`
+- หน้า dashboard เรียก API ผ่าน path `/api/...` บน domain เดียวกัน และ nginx จะ proxy เข้า `central-api` ภายใน stack
 
 ## API หลัก
 
