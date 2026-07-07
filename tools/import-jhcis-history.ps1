@@ -10,7 +10,8 @@ param(
   [string]$CentralApiUrl = "http://localhost:8080/api/v1/etl/summary",
   [string]$JwtSecret = "change_this_to_a_long_random_secret",
   [string]$JwtIssuer = "rpst-etl",
-  [string]$JwtAudience = "rpst-central-api"
+  [string]$JwtAudience = "rpst-central-api",
+  [string]$MySqlClientPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -59,6 +60,69 @@ function Read-Secret {
   }
   finally {
     [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+  }
+}
+
+function Get-MySqlClientCommand {
+  param([string]$ExplicitPath)
+  if (-not [string]::IsNullOrWhiteSpace($ExplicitPath)) {
+    if (-not (Test-Path -LiteralPath $ExplicitPath)) {
+      throw "MySQL client not found at '$ExplicitPath'."
+    }
+    return [pscustomobject]@{ Kind = "mysql"; Command = (Resolve-Path $ExplicitPath).Path }
+  }
+
+  $mysql = Get-Command mysql -ErrorAction SilentlyContinue
+  if ($null -ne $mysql) {
+    return [pscustomobject]@{ Kind = "mysql"; Command = $mysql.Source }
+  }
+
+  $docker = Get-Command docker -ErrorAction SilentlyContinue
+  if ($null -ne $docker) {
+    return [pscustomobject]@{ Kind = "docker"; Command = $docker.Source }
+  }
+
+  throw "Cannot find mysql.exe or docker. Install MySQL Client and add mysql.exe to PATH, or install Docker Desktop."
+}
+
+function Invoke-MySqlFile {
+  param(
+    [string]$SqlPath,
+    [string]$OutPath,
+    [string]$Password,
+    [string]$EnvPath
+  )
+
+  $runner = Get-MySqlClientCommand $MySqlClientPath
+  if ($runner.Kind -eq "mysql") {
+    $oldPassword = $env:MYSQL_PWD
+    try {
+      $env:MYSQL_PWD = $Password
+      & $runner.Command `
+        -h $DbHost -P $DbPort -u $DbUser -D $DbName --connect-timeout=20 `
+        --batch --raw --default-character-set=utf8 `
+        -e "source $SqlPath" | Set-Content -Path $OutPath -Encoding UTF8
+    }
+    finally {
+      if ($null -eq $oldPassword) {
+        Remove-Item Env:\MYSQL_PWD -ErrorAction SilentlyContinue
+      }
+      else {
+        $env:MYSQL_PWD = $oldPassword
+      }
+    }
+    return
+  }
+
+  Set-Content -Path $EnvPath -Value "MYSQL_PWD=$Password" -Encoding ASCII
+  try {
+    & $runner.Command run --rm --env-file $EnvPath -v "${WorkDir}:/work" mysql:8.0 mysql `
+      -h $DbHost -P $DbPort -u $DbUser -D $DbName --connect-timeout=20 `
+      --batch --raw --default-character-set=utf8 `
+      -e "source /work/jhcis-history-import.sql" | Set-Content -Path $OutPath -Encoding UTF8
+  }
+  finally {
+    Remove-Item -LiteralPath $EnvPath -Force -ErrorAction SilentlyContinue
   }
 }
 
@@ -258,17 +322,7 @@ ORDER BY report_date, metric;
 "@
 
 Set-Content -Path $sqlPath -Value $sql -Encoding UTF8
-Set-Content -Path $envPath -Value "MYSQL_PWD=$dbPassword" -Encoding ASCII
-
-try {
-  docker run --rm --env-file $envPath -v "${WorkDir}:/work" mysql:8.0 mysql `
-    -h $DbHost -P $DbPort -u $DbUser -D $DbName --connect-timeout=20 `
-    --batch --raw --default-character-set=utf8 `
-    -e "source /work/jhcis-history-import.sql" | Set-Content -Path $outPath -Encoding UTF8
-}
-finally {
-  Remove-Item -LiteralPath $envPath -Force -ErrorAction SilentlyContinue
-}
+Invoke-MySqlFile $sqlPath $outPath $dbPassword $envPath
 
 $lines = Get-Content -Path $outPath -Encoding UTF8
 if ($lines.Count -lt 2) {
