@@ -3,7 +3,7 @@ import express from "express";
 import helmet from "helmet";
 import { z } from "zod";
 import { requireEtlToken } from "./auth.js";
-import { pool, query } from "./db.js";
+import { ensureSchema, pool, query } from "./db.js";
 
 const app = express();
 const port = Number(process.env.PORT || 8080);
@@ -123,6 +123,12 @@ app.post("/api/v1/etl/summary", requireEtlToken, async (req, res) => {
     return res.status(202).json({ status: "accepted", summary_id: result.rows[0].id });
   } catch (error) {
     await client.query("ROLLBACK");
+    console.error("Failed to store ETL summary", {
+      facility_id: data.facility_id,
+      report_date: data.report_date,
+      error: error.message,
+      code: error.code
+    });
     return res.status(500).json({ error: "store_failed" });
   } finally {
     client.release();
@@ -350,6 +356,12 @@ app.use((_req, res) => {
   res.status(404).json({ error: "not_found" });
 });
 
-app.listen(port, () => {
-  console.log(`Central API listening on ${port}`);
-});
+try {
+  await ensureSchema();
+  app.listen(port, () => {
+    console.log(`Central API listening on ${port}`);
+  });
+} catch (error) {
+  console.error("Central API failed to start", error);
+  process.exit(1);
+}
