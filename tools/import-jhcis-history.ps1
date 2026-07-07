@@ -347,24 +347,26 @@ Set-Content -Path $sqlPath -Value $sql -Encoding UTF8
 Invoke-MySqlFile $sqlPath $outPath $dbPassword $envPath
 
 $lines = Get-Content -Path $outPath -Encoding UTF8
-if ($lines.Count -lt 2) {
-  throw "No aggregate rows returned from $DbName between $StartDate and $EndDate."
-}
-
-$headers = $lines[0] -split "`t"
 $byDate = @{}
-foreach ($line in $lines[1..($lines.Count - 1)]) {
-  if ([string]::IsNullOrWhiteSpace($line)) { continue }
-  $parts = $line -split "`t", $headers.Count
-  $record = @{}
-  for ($i = 0; $i -lt $headers.Count; $i++) {
-    $record[$headers[$i]] = $parts[$i]
+
+if ($lines.Count -lt 2) {
+  Write-Warning "No aggregate rows returned from $DbName between $StartDate and $EndDate. Sending zero values for requested calendar days."
+}
+else {
+  $headers = $lines[0] -split "`t"
+  foreach ($line in $lines[1..($lines.Count - 1)]) {
+    if ([string]::IsNullOrWhiteSpace($line)) { continue }
+    $parts = $line -split "`t", $headers.Count
+    $record = @{}
+    for ($i = 0; $i -lt $headers.Count; $i++) {
+      $record[$headers[$i]] = $parts[$i]
+    }
+    $dateKey = $record.report_date
+    if (-not $byDate.ContainsKey($dateKey)) {
+      $byDate[$dateKey] = @{}
+    }
+    $byDate[$dateKey][$record.metric] = $record.value
   }
-  $dateKey = $record.report_date
-  if (-not $byDate.ContainsKey($dateKey)) {
-    $byDate[$dateKey] = @{}
-  }
-  $byDate[$dateKey][$record.metric] = $record.value
 }
 
 $start = [DateTime]::ParseExact($StartDate, "yyyy-MM-dd", $null)
