@@ -1,53 +1,55 @@
 services:
   central-db:
     image: postgres:16-alpine
-    container_name: rpst-central-db
     environment:
-      POSTGRES_DB: rpst_dw
-      POSTGRES_USER: rpst
-      POSTGRES_PASSWORD: rpst_change_me
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: ${POSTGRES_DB:-rpst_dw}
+      POSTGRES_USER: ${POSTGRES_USER:-rpst}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rpst_change_me}
     volumes:
       - central_db_data:/var/lib/postgresql/data
       - ./central-db/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
       - ./central-db/migrations:/migrations:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U rpst -d rpst_dw"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   central-api:
     build: ./central-api
-    container_name: rpst-central-api
     environment:
       PORT: 8080
-      DATABASE_URL: postgres://rpst:rpst_change_me@central-db:5432/rpst_dw
-      JWT_SECRET: change_this_to_a_long_random_secret
-      JWT_ISSUER: rpst-etl
-      JWT_AUDIENCE: rpst-central-api
-      CORS_ORIGIN: http://localhost:8088
-    ports:
-      - "8080:8080"
+      DATABASE_URL: postgres://${POSTGRES_USER:-rpst}:${POSTGRES_PASSWORD:-rpst_change_me}@central-db:5432/${POSTGRES_DB:-rpst_dw}
+      JWT_SECRET: ${JWT_SECRET:-change_this_to_a_long_random_secret}
+      JWT_ISSUER: ${JWT_ISSUER:-rpst-etl}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-rpst-central-api}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+    expose:
+      - "8080"
     depends_on:
       central-db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:8080/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   dashboard:
-    image: nginx:1.27-alpine
-    container_name: rpst-dashboard
-    ports:
-      - "8088:80"
-    volumes:
-      - ./dashboard:/usr/share/nginx/html:ro
+    build: ./dashboard
+    expose:
+      - "80"
     depends_on:
       - central-api
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   etl-agent-sample:
     profiles: ["etl-sample"]
     build: ./etl-agent
-    container_name: rpst-etl-agent-sample
     environment:
       FACILITY_ID: "10001"
       FACILITY_NAME: "รพ.สต. ตัวอย่าง"
