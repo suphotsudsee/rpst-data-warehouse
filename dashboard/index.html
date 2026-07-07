@@ -16,14 +16,13 @@
         </div>
       </div>
       <nav>
-        <a class="active" href="#">ภาพรวมจังหวัด</a>
-        <a href="#">NCD DM/HT</a>
-        <a href="#">คุณภาพข้อมูล</a>
-        <a href="#">หน่วยบริการ</a>
+        <a class="active" href="#overview" data-nav-target="overview">ภาพรวมจังหวัด</a>
+        <a href="#ncd-section" data-nav-target="ncd-section">NCD DM/HT</a>
+        <a href="#facility-section" data-nav-target="facility-section">หน่วยบริการ</a>
       </nav>
     </aside>
 
-    <main class="shell">
+    <main id="overview" class="shell">
       <header class="topbar">
         <div>
           <p class="eyebrow">JHCIS Data Warehouse</p>
@@ -75,7 +74,7 @@
       </section>
 
       <section class="chart-grid">
-        <article class="panel chart-card">
+        <article id="ncd-section" class="panel chart-card">
           <div class="panel-title">
             <div>
               <h2>NCD Breakdown</h2>
@@ -117,7 +116,7 @@
         </article>
       </section>
 
-      <section class="panel table-panel">
+      <section id="facility-section" class="panel table-panel">
         <div class="panel-title">
           <div>
             <h2>สถานะรายหน่วยบริการ</h2>

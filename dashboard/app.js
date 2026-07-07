@@ -304,6 +304,39 @@ function closeYearPicker() {
   document.getElementById("yearOverlay").hidden = true;
 }
 
+function activateNavLink(activeLink) {
+  document.querySelectorAll("nav a").forEach((link) => {
+    link.classList.toggle("active", link === activeLink);
+  });
+}
+
+function highlightSection(target) {
+  document.querySelectorAll(".section-focus").forEach((section) => {
+    section.classList.remove("section-focus");
+  });
+  target.classList.add("section-focus");
+  target.setAttribute("tabindex", "-1");
+  target.focus({ preventScroll: true });
+  window.clearTimeout(target.__focusTimer);
+  target.__focusTimer = window.setTimeout(() => {
+    target.classList.remove("section-focus");
+  }, 1600);
+}
+
+function bindSectionNav() {
+  document.querySelectorAll("nav a[data-nav-target]").forEach((link) => {
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      const target = document.getElementById(link.dataset.navTarget);
+      if (!target) return;
+      activateNavLink(link);
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      highlightSection(target);
+      history.replaceState(null, "", link.getAttribute("href"));
+    });
+  });
+}
+
 async function loadOverview() {
   const statusText = document.getElementById("statusText");
   const reportDate = document.getElementById("reportDate").value;
@@ -321,10 +354,11 @@ async function loadOverview() {
   const facilities = facilityRange.facilities || [];
   const totals = sumRows(trendRows);
   const reportedFacilities = facilities.filter((facility) => Number(facility.reported_days || 0) > 0).length;
+  const expectedFacilities = facilities.length || 90;
   const scopeText = reportDate ? "เฉพาะวันที่เลือก" : range.label;
 
   document.getElementById("reportedFacilities").textContent =
-    `${formatNumber(reportedFacilities)}/${formatNumber(facilities.length || 90)}`;
+    `${formatNumber(reportedFacilities)}/${formatNumber(expectedFacilities)}`;
   document.getElementById("totalVisits").textContent = formatNumber(totals.total_visits);
   document.getElementById("uniquePatients").textContent = formatNumber(totals.unique_patients);
   document.getElementById("ncdDmHtPatients").textContent = formatNumber(totals.ncd_dm_ht_patients);
@@ -447,6 +481,7 @@ window.addEventListener("resize", () => {
 });
 
 updateYearButton();
+bindSectionNav();
 loadAvailableYears().then(loadOverview).catch((error) => {
   document.getElementById("statusText").textContent = error.message;
 });

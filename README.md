@@ -101,6 +101,9 @@ docker compose exec central-db psql -U rpst -d rpst_dw -f /migrations/002_add_nc
 - `docs/JHCIS-MAPPING.md`
 - `docs/jhcis-discovery.sql`
 - `docs/jhcis-phase1-config-template.json`
+- `docs/jhcisdb-chronic-disease-group-queries.sql`
+
+ถ้าต้อง import ข้อมูลย้อนหลังจาก JHCIS ให้ใช้ `tools/import-jhcis-history.ps1` ซึ่งค่าเริ่มต้นจะดึงย้อนหลัง 5 ปีถึงวันที่รัน และเก็บกลุ่มโรคเพิ่มเติมไว้ใน `payload.disease_groups`
 
 ถ้าทีมเทคนิคต้องการรันผ่าน Docker ยังใช้โฟลเดอร์ `etl-agent` ได้ โดยตั้งค่า `.env` ต่อหน่วยบริการ:
 

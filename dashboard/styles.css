@@ -25,6 +25,10 @@ body {
   font-family: Arial, "Noto Sans Thai", sans-serif;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 .sidebar {
   position: fixed;
   inset: 0 auto 0 0;
@@ -257,6 +261,17 @@ button {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
+}
+
+#overview,
+#ncd-section,
+#facility-section {
+  scroll-margin-top: 18px;
+}
+
+.section-focus {
+  outline: 3px solid rgba(37, 99, 235, 0.32);
+  box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.08), 0 10px 28px rgba(25, 43, 70, 0.06);
 }
 
 canvas {

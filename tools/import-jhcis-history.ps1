@@ -3,8 +3,8 @@ param(
   [int]$DbPort = 32772,
   [string]$DbUser = "suphot",
   [string]$DbName = "jhcisdb03633",
-  [string]$StartDate = "2021-07-06",
-  [string]$EndDate = "2026-07-06",
+  [string]$StartDate = (Get-Date).AddYears(-5).ToString("yyyy-MM-dd"),
+  [string]$EndDate = (Get-Date).ToString("yyyy-MM-dd"),
   [string]$FacilityId = "03633",
   [string]$FacilityName = "JHCIS 03633",
   [string]$CentralApiUrl = "http://localhost:8080/api/v1/etl/summary",
@@ -172,6 +172,88 @@ FROM visit
 WHERE visitdate BETWEEN @start_date AND @end_date
   AND typein = '4'
 GROUP BY visitdate
+UNION ALL
+SELECT 'disease_dyslipidemia', DATE_FORMAT(v.visitdate, '%Y-%m-%d'), COUNT(DISTINCT v.pcucodeperson, v.pid)
+FROM visit v
+JOIN visitdiag dg ON dg.pcucode = v.pcucode AND dg.visitno = v.visitno
+WHERE v.visitdate BETWEEN @start_date AND @end_date
+  AND dg.diagcode REGEXP '^E78'
+GROUP BY v.visitdate
+UNION ALL
+SELECT 'disease_vaping_lung_injury', DATE_FORMAT(v.visitdate, '%Y-%m-%d'), COUNT(DISTINCT v.pcucodeperson, v.pid)
+FROM visit v
+JOIN visitdiag dg ON dg.pcucode = v.pcucode AND dg.visitno = v.visitno
+WHERE v.visitdate BETWEEN @start_date AND @end_date
+  AND (
+    dg.diagcode REGEXP '^U07\\.0'
+    OR dg.diagcode REGEXP '^J68\\.0'
+    OR dg.diagcode REGEXP '^J69\\.1'
+  )
+GROUP BY v.visitdate
+UNION ALL
+SELECT 'disease_coronary_artery', DATE_FORMAT(v.visitdate, '%Y-%m-%d'), COUNT(DISTINCT v.pcucodeperson, v.pid)
+FROM visit v
+JOIN visitdiag dg ON dg.pcucode = v.pcucode AND dg.visitno = v.visitno
+WHERE v.visitdate BETWEEN @start_date AND @end_date
+  AND dg.diagcode REGEXP '^I2[0-5]'
+GROUP BY v.visitdate
+UNION ALL
+SELECT 'disease_stroke', DATE_FORMAT(v.visitdate, '%Y-%m-%d'), COUNT(DISTINCT v.pcucodeperson, v.pid)
+FROM visit v
+JOIN visitdiag dg ON dg.pcucode = v.pcucode AND dg.visitno = v.visitno
+WHERE v.visitdate BETWEEN @start_date AND @end_date
+  AND dg.diagcode REGEXP '^I6[0-9]'
+GROUP BY v.visitdate
+UNION ALL
+SELECT 'disease_mental_health', DATE_FORMAT(v.visitdate, '%Y-%m-%d'), COUNT(DISTINCT v.pcucodeperson, v.pid)
+FROM visit v
+JOIN visitdiag dg ON dg.pcucode = v.pcucode AND dg.visitno = v.visitno
+WHERE v.visitdate BETWEEN @start_date AND @end_date
+  AND dg.diagcode REGEXP '^F[0-9][0-9]'
+GROUP BY v.visitdate
+UNION ALL
+SELECT 'disease_cancer', DATE_FORMAT(v.visitdate, '%Y-%m-%d'), COUNT(DISTINCT v.pcucodeperson, v.pid)
+FROM visit v
+JOIN visitdiag dg ON dg.pcucode = v.pcucode AND dg.visitno = v.visitno
+WHERE v.visitdate BETWEEN @start_date AND @end_date
+  AND (
+    dg.diagcode REGEXP '^C[0-9][0-9]'
+    OR dg.diagcode REGEXP '^D0[0-9]'
+    OR dg.diagcode REGEXP '^D[1-3][0-9]'
+    OR dg.diagcode REGEXP '^D4[0-8]'
+  )
+GROUP BY v.visitdate
+UNION ALL
+SELECT 'disease_diabetes', DATE_FORMAT(v.visitdate, '%Y-%m-%d'), COUNT(DISTINCT v.pcucodeperson, v.pid)
+FROM visit v
+JOIN visitdiag dg ON dg.pcucode = v.pcucode AND dg.visitno = v.visitno
+WHERE v.visitdate BETWEEN @start_date AND @end_date
+  AND dg.diagcode REGEXP '^E1[0-4]'
+GROUP BY v.visitdate
+UNION ALL
+SELECT 'disease_pertussis', DATE_FORMAT(v.visitdate, '%Y-%m-%d'), COUNT(DISTINCT v.pcucodeperson, v.pid)
+FROM visit v
+JOIN visitdiag dg ON dg.pcucode = v.pcucode AND dg.visitno = v.visitno
+WHERE v.visitdate BETWEEN @start_date AND @end_date
+  AND dg.diagcode REGEXP '^A37'
+GROUP BY v.visitdate
+UNION ALL
+SELECT 'disease_hypertension', DATE_FORMAT(v.visitdate, '%Y-%m-%d'), COUNT(DISTINCT v.pcucodeperson, v.pid)
+FROM visit v
+JOIN visitdiag dg ON dg.pcucode = v.pcucode AND dg.visitno = v.visitno
+WHERE v.visitdate BETWEEN @start_date AND @end_date
+  AND dg.diagcode REGEXP '^I1[0-5]'
+GROUP BY v.visitdate
+UNION ALL
+SELECT 'disease_copd_emphysema', DATE_FORMAT(v.visitdate, '%Y-%m-%d'), COUNT(DISTINCT v.pcucodeperson, v.pid)
+FROM visit v
+JOIN visitdiag dg ON dg.pcucode = v.pcucode AND dg.visitno = v.visitno
+WHERE v.visitdate BETWEEN @start_date AND @end_date
+  AND (
+    dg.diagcode REGEXP '^J43'
+    OR dg.diagcode REGEXP '^J44'
+  )
+GROUP BY v.visitdate
 ORDER BY report_date, metric;
 "@
 
@@ -252,6 +334,18 @@ for ($day = $start; $day -le $end; $day = $day.AddDays(1)) {
       generated_by = "history-import"
       ncd_definition = "DM=E10-E14, HT=I10-I15"
       import_range = "$StartDate..$EndDate"
+      disease_groups = @{
+        dyslipidemia = IntField "disease_dyslipidemia"
+        vaping_lung_injury = IntField "disease_vaping_lung_injury"
+        coronary_artery_disease = IntField "disease_coronary_artery"
+        stroke = IntField "disease_stroke"
+        mental_health = IntField "disease_mental_health"
+        cancer = IntField "disease_cancer"
+        diabetes = IntField "disease_diabetes"
+        pertussis = IntField "disease_pertussis"
+        hypertension = IntField "disease_hypertension"
+        copd_emphysema = IntField "disease_copd_emphysema"
+      }
     }
   } | ConvertTo-Json -Depth 5
 
