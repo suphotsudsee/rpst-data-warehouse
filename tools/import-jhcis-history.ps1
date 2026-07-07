@@ -94,14 +94,24 @@ function Invoke-MySqlFile {
   )
 
   $runner = Get-MySqlClientCommand $MySqlClientPath
+  $errorPath = Join-Path $WorkDir "jhcis-history-mysql-error.log"
+  Remove-Item -LiteralPath $OutPath -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $errorPath -Force -ErrorAction SilentlyContinue
+
   if ($runner.Kind -eq "mysql") {
     $oldPassword = $env:MYSQL_PWD
+    $mysqlSqlPath = $SqlPath.Replace("\", "/")
     try {
       $env:MYSQL_PWD = $Password
       & $runner.Command `
         -h $DbHost -P $DbPort -u $DbUser -D $DbName --connect-timeout=20 `
         --batch --raw --default-character-set=utf8 `
-        -e "source $SqlPath" | Set-Content -Path $OutPath -Encoding UTF8
+        -e "source $mysqlSqlPath" > $OutPath 2> $errorPath
+
+      if ($LASTEXITCODE -ne 0) {
+        $errorText = if (Test-Path -LiteralPath $errorPath) { Get-Content -Path $errorPath -Raw -Encoding UTF8 } else { "" }
+        throw "mysql.exe failed with exit code $LASTEXITCODE. $errorText"
+      }
     }
     finally {
       if ($null -eq $oldPassword) {
@@ -119,10 +129,19 @@ function Invoke-MySqlFile {
     & $runner.Command run --rm --env-file $EnvPath -v "${WorkDir}:/work" mysql:8.0 mysql `
       -h $DbHost -P $DbPort -u $DbUser -D $DbName --connect-timeout=20 `
       --batch --raw --default-character-set=utf8 `
-      -e "source /work/jhcis-history-import.sql" | Set-Content -Path $OutPath -Encoding UTF8
+      -e "source /work/jhcis-history-import.sql" > $OutPath 2> $errorPath
+
+    if ($LASTEXITCODE -ne 0) {
+      $errorText = if (Test-Path -LiteralPath $errorPath) { Get-Content -Path $errorPath -Raw -Encoding UTF8 } else { "" }
+      throw "docker/mysql failed with exit code $LASTEXITCODE. $errorText"
+    }
   }
   finally {
     Remove-Item -LiteralPath $EnvPath -Force -ErrorAction SilentlyContinue
+  }
+
+  if (-not (Test-Path -LiteralPath $OutPath)) {
+    throw "MySQL command finished but result file was not created: $OutPath"
   }
 }
 
