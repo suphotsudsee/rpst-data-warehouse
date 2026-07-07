@@ -3,73 +3,126 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>RPST Data Warehouse Dashboard</title>
+    <title>RPST NCD Dashboard</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">N</div>
+        <div>
+          <strong>NCD Center</strong>
+          <span>Provincial PPHO</span>
+        </div>
+      </div>
+      <nav>
+        <a class="active" href="#">ภาพรวมจังหวัด</a>
+        <a href="#">NCD DM/HT</a>
+        <a href="#">คุณภาพข้อมูล</a>
+        <a href="#">หน่วยบริการ</a>
+      </nav>
+    </aside>
+
     <main class="shell">
       <header class="topbar">
         <div>
-          <p class="eyebrow">Provincial Public Health Office</p>
-          <h1>ภาพรวมข้อมูล รพ.สต.</h1>
+          <p class="eyebrow">JHCIS Data Warehouse</p>
+          <h1>Dashboard ภาพรวม รพ.สต.</h1>
+          <p class="subtitle">ติดตามบริการรายวันและตัวชี้วัด NCD จากฐานข้อมูลสรุปส่วนกลาง</p>
         </div>
         <div class="toolbar">
+          <button id="yearPickerButton" class="year-pill" type="button">
+            <span id="yearModeText">ปี พ.ศ.</span>
+            <strong id="selectedYearText">2569</strong>
+            <span class="chevron">⌄</span>
+          </button>
           <input id="reportDate" type="date" aria-label="report date" />
           <button id="refreshButton" type="button">Refresh</button>
         </div>
       </header>
 
-      <section class="metrics" aria-label="summary metrics">
-        <article>
+      <section class="kpi-grid" aria-label="summary metrics">
+        <article class="kpi blue">
           <span>รายงานแล้ว</span>
           <strong id="reportedFacilities">0/90</strong>
+          <small>หน่วยบริการ</small>
         </article>
-        <article>
+        <article class="kpi amber">
           <span>ผู้รับบริการ</span>
           <strong id="totalVisits">0</strong>
+          <small id="totalVisitsScope">visits</small>
         </article>
-        <article>
+        <article class="kpi slate">
           <span>ผู้ป่วยไม่ซ้ำ</span>
           <strong id="uniquePatients">0</strong>
+          <small id="uniquePatientsScope">patients</small>
         </article>
-        <article>
+        <article class="kpi teal">
           <span>NCD DM/HT</span>
           <strong id="ncdDmHtPatients">0</strong>
+          <small id="ncdScope">patients</small>
         </article>
-        <article>
-          <span>DM</span>
-          <strong id="ncdDmPatients">0</strong>
-        </article>
-        <article>
-          <span>HT</span>
-          <strong id="ncdHtPatients">0</strong>
-        </article>
-        <article>
-          <span>BP Screen</span>
-          <strong id="ncdBpScreened">0</strong>
-        </article>
-        <article>
-          <span>FBS Screen</span>
-          <strong id="ncdFbsScreened">0</strong>
-        </article>
-        <article>
+        <article class="kpi red">
           <span>Missing Dx</span>
           <strong id="missingDiagnosis">0</strong>
+          <small id="missingDxScope">quality check</small>
         </article>
-        <article>
-          <span>ส่งต่อ</span>
-          <strong id="referOut">0</strong>
-        </article>
-        <article>
-          <span>ฉุกเฉิน</span>
-          <strong id="emergencyCases">0</strong>
+        <article class="kpi green">
+          <span>BP Screen</span>
+          <strong id="ncdBpScreened">0</strong>
+          <small id="bpScope">screened</small>
         </article>
       </section>
 
-      <section class="panel">
+      <section class="chart-grid">
+        <article class="panel chart-card">
+          <div class="panel-title">
+            <div>
+              <h2>NCD Breakdown</h2>
+              <span>DM, HT, BP และ FBS</span>
+            </div>
+          </div>
+          <canvas id="ncdDonut" height="260"></canvas>
+          <div id="ncdLegend" class="legend"></div>
+        </article>
+
+        <article class="panel chart-card wide">
+          <div class="panel-title">
+            <div>
+              <h2>แนวโน้มย้อนหลัง</h2>
+              <span id="trendCaption">Visits และ NCD รายวันย้อนหลัง 5 ปี</span>
+            </div>
+          </div>
+          <canvas id="trendLine" height="260"></canvas>
+        </article>
+
+        <article class="panel chart-card">
+          <div class="panel-title">
+            <div>
+              <h2>สัดส่วนบริการ</h2>
+              <span>ANC, vaccine, home, refer, emergency</span>
+            </div>
+          </div>
+          <canvas id="serviceBar" height="260"></canvas>
+        </article>
+
+        <article class="panel chart-card wide">
+          <div class="panel-title">
+            <div>
+              <h2>หน่วยบริการที่มีผู้รับบริการสูงสุด</h2>
+              <span>เรียงตามจำนวน visits</span>
+            </div>
+          </div>
+          <canvas id="facilityBar" height="280"></canvas>
+        </article>
+      </section>
+
+      <section class="panel table-panel">
         <div class="panel-title">
-          <h2>สถานะรายหน่วยบริการ</h2>
-          <span id="statusText">Loading</span>
+          <div>
+            <h2>สถานะรายหน่วยบริการ</h2>
+            <span id="statusText">Loading</span>
+          </div>
         </div>
         <div class="table-wrap">
           <table>
@@ -78,18 +131,18 @@
                 <th>รหัส</th>
                 <th>หน่วยบริการ</th>
                 <th>วันที่ข้อมูล</th>
-                <th>ผู้รับบริการ</th>
-                <th>เรื้อรัง</th>
-                <th>NCD DM/HT</th>
+                <th>Visits</th>
+                <th>NCD</th>
                 <th>DM</th>
                 <th>HT</th>
                 <th>BP</th>
                 <th>FBS</th>
                 <th>Missing Dx</th>
                 <th>ANC</th>
-                <th>วัคซีน</th>
-                <th>เยี่ยมบ้าน</th>
-                <th>รับเข้าล่าสุด</th>
+                <th>Vaccine</th>
+                <th>Home</th>
+                <th>Refer</th>
+                <th>ล่าสุด</th>
               </tr>
             </thead>
             <tbody id="facilityRows"></tbody>
@@ -97,6 +150,26 @@
         </div>
       </section>
     </main>
+
+    <div id="yearOverlay" class="overlay" hidden>
+      <section class="year-dialog" role="dialog" aria-modal="true" aria-labelledby="yearDialogTitle">
+        <div class="year-dialog-head">
+          <h2 id="yearDialogTitle">กรองข้อมูลปี</h2>
+          <button id="confirmYearButton" class="confirm-button" type="button">ตกลง</button>
+        </div>
+        <div class="year-picker-body">
+          <div class="year-tabs" role="tablist">
+            <button id="calendarTab" class="tab active" type="button" data-mode="calendar">ปี พ.ศ</button>
+            <button id="fiscalTab" class="tab" type="button" data-mode="fiscal">ปีงบประมาณ</button>
+          </div>
+          <div class="year-list-wrap">
+            <p id="yearListLabel">ตัวเลือก ปี พ.ศ</p>
+            <div id="yearList" class="year-list"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+
     <script src="./app.js"></script>
   </body>
 </html>

@@ -201,6 +201,97 @@ app.get("/api/v1/dashboard/overview", async (req, res) => {
   });
 });
 
+app.get("/api/v1/dashboard/trends", async (req, res) => {
+  const days = Math.min(Math.max(Number(req.query.days || 1827), 1), 2000);
+  const startDate = typeof req.query.start_date === "string" ? req.query.start_date : null;
+  const endDate = typeof req.query.end_date === "string" ? req.query.end_date : null;
+  const hasRange = Boolean(startDate && endDate);
+  const result = await query(
+    `SELECT
+       report_date,
+       COALESCE(SUM(total_visits), 0)::int AS total_visits,
+       COALESCE(SUM(unique_patients), 0)::int AS unique_patients,
+       COALESCE(SUM(chronic_followups), 0)::int AS chronic_followups,
+       COALESCE(SUM(ncd_dm_patients), 0)::int AS ncd_dm_patients,
+       COALESCE(SUM(ncd_ht_patients), 0)::int AS ncd_ht_patients,
+       COALESCE(SUM(ncd_dm_ht_patients), 0)::int AS ncd_dm_ht_patients,
+       COALESCE(SUM(ncd_bp_screened), 0)::int AS ncd_bp_screened,
+       COALESCE(SUM(ncd_fbs_screened), 0)::int AS ncd_fbs_screened,
+       COALESCE(SUM(missing_diagnosis), 0)::int AS missing_diagnosis,
+       COALESCE(SUM(anc_visits), 0)::int AS anc_visits,
+       COALESCE(SUM(vaccine_visits), 0)::int AS vaccine_visits,
+       COALESCE(SUM(home_visits), 0)::int AS home_visits,
+       COALESCE(SUM(refer_out), 0)::int AS refer_out,
+       COALESCE(SUM(emergency_cases), 0)::int AS emergency_cases
+     FROM facility_daily_summaries
+     WHERE ${
+       hasRange
+         ? "report_date BETWEEN $1::date AND $2::date"
+         : "report_date >= CURRENT_DATE - ($1::int - 1)"
+     }
+     GROUP BY report_date
+     ORDER BY report_date`,
+    hasRange ? [startDate, endDate] : [days]
+  );
+
+  res.json({ days: hasRange ? null : days, start_date: startDate, end_date: endDate, data: result.rows });
+});
+
+app.get("/api/v1/dashboard/facilities/range", async (req, res) => {
+  const startDate = typeof req.query.start_date === "string" ? req.query.start_date : null;
+  const endDate = typeof req.query.end_date === "string" ? req.query.end_date : null;
+
+  if (!startDate || !endDate) {
+    return res.status(400).json({ error: "start_date_and_end_date_required" });
+  }
+
+  const result = await query(
+    `SELECT
+       f.facility_id,
+       f.facility_name,
+       f.district,
+       f.province,
+       MIN(s.report_date) AS first_report_date,
+       MAX(s.report_date) AS last_report_date,
+       MAX(s.received_at) AS received_at,
+       COUNT(s.report_date)::int AS reported_days,
+       COALESCE(SUM(s.total_visits), 0)::int AS total_visits,
+       COALESCE(SUM(s.unique_patients), 0)::int AS unique_patients,
+       COALESCE(SUM(s.chronic_followups), 0)::int AS chronic_followups,
+       COALESCE(SUM(s.ncd_dm_patients), 0)::int AS ncd_dm_patients,
+       COALESCE(SUM(s.ncd_ht_patients), 0)::int AS ncd_ht_patients,
+       COALESCE(SUM(s.ncd_dm_ht_patients), 0)::int AS ncd_dm_ht_patients,
+       COALESCE(SUM(s.ncd_bp_screened), 0)::int AS ncd_bp_screened,
+       COALESCE(SUM(s.ncd_fbs_screened), 0)::int AS ncd_fbs_screened,
+       COALESCE(SUM(s.missing_diagnosis), 0)::int AS missing_diagnosis,
+       COALESCE(SUM(s.anc_visits), 0)::int AS anc_visits,
+       COALESCE(SUM(s.vaccine_visits), 0)::int AS vaccine_visits,
+       COALESCE(SUM(s.home_visits), 0)::int AS home_visits,
+       COALESCE(SUM(s.refer_out), 0)::int AS refer_out,
+       COALESCE(SUM(s.emergency_cases), 0)::int AS emergency_cases
+     FROM facilities f
+     LEFT JOIN facility_daily_summaries s
+       ON s.facility_id = f.facility_id
+      AND s.report_date BETWEEN $1::date AND $2::date
+     GROUP BY f.facility_id, f.facility_name, f.district, f.province
+     ORDER BY total_visits DESC, f.facility_name`,
+    [startDate, endDate]
+  );
+
+  res.json({ start_date: startDate, end_date: endDate, facilities: result.rows });
+});
+
+app.get("/api/v1/dashboard/available-years", async (_req, res) => {
+  const result = await query(
+    `SELECT DISTINCT (EXTRACT(YEAR FROM report_date)::int + 543) AS calendar_year
+     FROM facility_daily_summaries
+     ORDER BY calendar_year DESC`
+  );
+
+  const years = result.rows.map((row) => Number(row.calendar_year));
+  res.json({ years });
+});
+
 app.use((_req, res) => {
   res.status(404).json({ error: "not_found" });
 });
