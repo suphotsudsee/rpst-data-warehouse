@@ -211,7 +211,10 @@ app.get("/api/v1/dashboard/trends", async (req, res) => {
   const days = Math.min(Math.max(Number(req.query.days || 1827), 1), 2000);
   const startDate = typeof req.query.start_date === "string" ? req.query.start_date : null;
   const endDate = typeof req.query.end_date === "string" ? req.query.end_date : null;
+  const facilityId = typeof req.query.facility_id === "string" && req.query.facility_id ? req.query.facility_id : null;
   const hasRange = Boolean(startDate && endDate);
+  const params = hasRange ? [startDate, endDate] : [days];
+  const facilityWhere = facilityId ? ` AND facility_id = $${params.push(facilityId)}` : "";
   const result = await query(
     `SELECT
        report_date,
@@ -232,12 +235,12 @@ app.get("/api/v1/dashboard/trends", async (req, res) => {
      FROM facility_daily_summaries
      WHERE ${
        hasRange
-         ? "report_date BETWEEN $1::date AND $2::date"
-         : "report_date >= CURRENT_DATE - ($1::int - 1)"
-     }
+          ? "report_date BETWEEN $1::date AND $2::date"
+          : "report_date >= CURRENT_DATE - ($1::int - 1)"
+     }${facilityWhere}
      GROUP BY report_date
      ORDER BY report_date`,
-    hasRange ? [startDate, endDate] : [days]
+    params
   );
 
   res.json({ days: hasRange ? null : days, start_date: startDate, end_date: endDate, data: result.rows });
@@ -246,11 +249,14 @@ app.get("/api/v1/dashboard/trends", async (req, res) => {
 app.get("/api/v1/dashboard/facilities/range", async (req, res) => {
   const startDate = typeof req.query.start_date === "string" ? req.query.start_date : null;
   const endDate = typeof req.query.end_date === "string" ? req.query.end_date : null;
+  const facilityId = typeof req.query.facility_id === "string" && req.query.facility_id ? req.query.facility_id : null;
 
   if (!startDate || !endDate) {
     return res.status(400).json({ error: "start_date_and_end_date_required" });
   }
 
+  const params = [startDate, endDate];
+  const facilityWhere = facilityId ? `WHERE f.facility_id = $${params.push(facilityId)}` : "";
   const result = await query(
     `SELECT
        f.facility_id,
@@ -279,9 +285,10 @@ app.get("/api/v1/dashboard/facilities/range", async (req, res) => {
      LEFT JOIN facility_daily_summaries s
        ON s.facility_id = f.facility_id
       AND s.report_date BETWEEN $1::date AND $2::date
+     ${facilityWhere}
      GROUP BY f.facility_id, f.facility_name, f.district, f.province
      ORDER BY total_visits DESC, f.facility_name`,
-    [startDate, endDate]
+    params
   );
 
   res.json({ start_date: startDate, end_date: endDate, facilities: result.rows });
@@ -290,11 +297,14 @@ app.get("/api/v1/dashboard/facilities/range", async (req, res) => {
 app.get("/api/v1/dashboard/disease-groups/range", async (req, res) => {
   const startDate = typeof req.query.start_date === "string" ? req.query.start_date : null;
   const endDate = typeof req.query.end_date === "string" ? req.query.end_date : null;
+  const facilityId = typeof req.query.facility_id === "string" && req.query.facility_id ? req.query.facility_id : null;
 
   if (!startDate || !endDate) {
     return res.status(400).json({ error: "start_date_and_end_date_required" });
   }
 
+  const params = [startDate, endDate];
+  const facilityWhere = facilityId ? ` AND s.facility_id = $${params.push(facilityId)}` : "";
   const result = await query(
     `WITH disease_groups AS (
        SELECT
@@ -303,6 +313,7 @@ app.get("/api/v1/dashboard/disease-groups/range", async (req, res) => {
        FROM facility_daily_summaries s
        CROSS JOIN LATERAL jsonb_each_text(COALESCE(s.payload->'disease_groups', '{}'::jsonb)) AS item(key, value)
        WHERE s.report_date BETWEEN $1::date AND $2::date
+       ${facilityWhere}
        GROUP BY item.key
      ),
      column_totals AS (
@@ -311,6 +322,7 @@ app.get("/api/v1/dashboard/disease-groups/range", async (req, res) => {
          COALESCE(SUM(ncd_ht_patients), 0)::int AS hypertension
        FROM facility_daily_summaries
        WHERE report_date BETWEEN $1::date AND $2::date
+       ${facilityId ? ` AND facility_id = $${params.length}` : ""}
      )
      SELECT
        disease_key,
@@ -335,7 +347,7 @@ app.get("/api/v1/dashboard/disease-groups/range", async (req, res) => {
      CROSS JOIN column_totals
      LEFT JOIN disease_groups ON disease_groups.key = labels.disease_key
      ORDER BY labels.sort_order`,
-    [startDate, endDate]
+    params
   );
 
   res.json({ start_date: startDate, end_date: endDate, data: result.rows });

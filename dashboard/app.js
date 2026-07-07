@@ -358,6 +358,17 @@ async function fetchJson(url) {
   return response.json();
 }
 
+function selectedFacilityId() {
+  return document.getElementById("facilityFilter").value;
+}
+
+function dashboardParams(start, end) {
+  const params = new URLSearchParams({ start_date: start, end_date: end });
+  const facilityId = selectedFacilityId();
+  if (facilityId) params.set("facility_id", facilityId);
+  return params.toString();
+}
+
 function renderYearList() {
   const list = document.getElementById("yearList");
   const label = document.getElementById("yearListLabel");
@@ -429,12 +440,15 @@ async function loadOverview() {
   const range = selectedRange();
   const start = reportDate || range.start;
   const end = reportDate || range.end;
+  const queryParams = dashboardParams(start, end);
+  const facilitySelect = document.getElementById("facilityFilter");
+  const facilityText = facilitySelect.value ? facilitySelect.options[facilitySelect.selectedIndex].textContent : "";
 
   statusText.textContent = "Loading";
   const [trends, facilityRange, diseaseGroups] = await Promise.all([
-    fetchJson(`${apiBaseUrl}/api/v1/dashboard/trends?start_date=${start}&end_date=${end}`),
-    fetchJson(`${apiBaseUrl}/api/v1/dashboard/facilities/range?start_date=${start}&end_date=${end}`),
-    fetchJson(`${apiBaseUrl}/api/v1/dashboard/disease-groups/range?start_date=${start}&end_date=${end}`)
+    fetchJson(`${apiBaseUrl}/api/v1/dashboard/trends?${queryParams}`),
+    fetchJson(`${apiBaseUrl}/api/v1/dashboard/facilities/range?${queryParams}`),
+    fetchJson(`${apiBaseUrl}/api/v1/dashboard/disease-groups/range?${queryParams}`)
       .catch(() => ({ data: diseaseGroupLabels.map((label) => ({ disease_label: label, patients: 0 })) }))
   ]);
 
@@ -443,7 +457,7 @@ async function loadOverview() {
   const totals = sumRows(trendRows);
   const reportedFacilities = facilities.filter((facility) => Number(facility.reported_days || 0) > 0).length;
   const expectedFacilities = facilities.length || 90;
-  const scopeText = reportDate ? "เฉพาะวันที่เลือก" : range.label;
+  const scopeText = [facilityText, reportDate ? "เฉพาะวันที่เลือก" : range.label].filter(Boolean).join(" · ");
 
   document.getElementById("reportedFacilities").textContent =
     `${formatNumber(reportedFacilities)}/${formatNumber(expectedFacilities)}`;
@@ -541,6 +555,20 @@ async function loadAvailableYears() {
   renderYearList();
 }
 
+async function loadFacilityOptions() {
+  const select = document.getElementById("facilityFilter");
+  try {
+    const result = await fetchJson(`${apiBaseUrl}/api/v1/facilities`);
+    const facilities = result.data || [];
+    select.innerHTML = `<option value="">ทุกหน่วยบริการ</option>` + facilities.map((facility) => {
+      const label = `${facility.facility_id} - ${facility.facility_name || ""}`.trim();
+      return `<option value="${escapeHtml(facility.facility_id)}">${escapeHtml(label)}</option>`;
+    }).join("");
+  } catch {
+    select.innerHTML = `<option value="">ทุกหน่วยบริการ</option>`;
+  }
+}
+
 document.getElementById("yearPickerButton").addEventListener("click", openYearPicker);
 document.getElementById("yearOverlay").addEventListener("click", (event) => {
   if (event.target.id === "yearOverlay") closeYearPicker();
@@ -572,6 +600,11 @@ document.getElementById("refreshButton").addEventListener("click", () => {
     document.getElementById("statusText").textContent = error.message;
   });
 });
+document.getElementById("facilityFilter").addEventListener("change", () => {
+  loadOverview().catch((error) => {
+    document.getElementById("statusText").textContent = error.message;
+  });
+});
 window.addEventListener("resize", () => {
   clearTimeout(window.__resizeTimer);
   window.__resizeTimer = setTimeout(loadOverview, 180);
@@ -579,6 +612,6 @@ window.addEventListener("resize", () => {
 
 updateYearButton();
 bindSectionNav();
-loadAvailableYears().then(loadOverview).catch((error) => {
+Promise.all([loadAvailableYears(), loadFacilityOptions()]).then(loadOverview).catch((error) => {
   document.getElementById("statusText").textContent = error.message;
 });
