@@ -16,7 +16,7 @@ const palette = {
 const diseaseColors = {
   DM: palette.red,
   HT: palette.amber,
-  DM_HT: palette.purple,
+  DM_HT: palette.blue,
   NCD: palette.blue,
   OTHER_NCD: palette.slate
 };

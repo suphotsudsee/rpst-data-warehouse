@@ -451,7 +451,7 @@ app.get("/api/v1/dashboard/ncd-house-locations", async (req, res) => {
   }
 
   const result = await query(
-    `WITH selected AS (
+    `WITH selected_diseases AS (
        SELECT DISTINCT ON (l.facility_id, l.patient_hash, l.disease_group)
          l.facility_id,
          f.facility_name,
@@ -464,6 +464,27 @@ app.get("/api/v1/dashboard/ncd-house-locations", async (req, res) => {
        JOIN facilities f ON f.facility_id = l.facility_id
        WHERE ${filters.join(" AND ")}
        ORDER BY l.facility_id, l.patient_hash, l.disease_group, l.report_date DESC
+     ),
+     selected AS (
+       SELECT DISTINCT ON (facility_id, patient_hash)
+         facility_id,
+         facility_name,
+         MAX(report_date) OVER (PARTITION BY facility_id, patient_hash) AS report_date,
+         patient_hash,
+         CASE
+           WHEN BOOL_OR(disease_group = 'DM') OVER (PARTITION BY facility_id, patient_hash)
+            AND BOOL_OR(disease_group = 'HT') OVER (PARTITION BY facility_id, patient_hash)
+             THEN 'DM_HT'
+           WHEN BOOL_OR(disease_group = 'DM') OVER (PARTITION BY facility_id, patient_hash)
+             THEN 'DM'
+           WHEN BOOL_OR(disease_group = 'HT') OVER (PARTITION BY facility_id, patient_hash)
+             THEN 'HT'
+           ELSE MIN(disease_group) OVER (PARTITION BY facility_id, patient_hash)
+         END AS disease_group,
+         FIRST_VALUE(latitude) OVER (PARTITION BY facility_id, patient_hash ORDER BY report_date DESC) AS latitude,
+         FIRST_VALUE(longitude) OVER (PARTITION BY facility_id, patient_hash ORDER BY report_date DESC) AS longitude
+       FROM selected_diseases
+       ORDER BY facility_id, patient_hash, report_date DESC
      )
      SELECT
        facility_id,
