@@ -10,7 +10,7 @@ const port = Number(process.env.PORT || 8080);
 
 app.use(helmet());
 app.use(cors({ origin: process.env.CORS_ORIGIN || "*" }));
-app.use(express.json({ limit: "512kb" }));
+app.use(express.json({ limit: "5mb" }));
 
 const summarySchema = z.object({
   facility_id: z.string().min(1).max(20),
@@ -34,6 +34,21 @@ const summarySchema = z.object({
   emergency_cases: z.number().int().nonnegative().default(0),
   source_generated_at: z.string().datetime(),
   payload: z.record(z.unknown()).default({})
+});
+
+const locationItemSchema = z.object({
+  patient_hash: z.string().min(16).max(128),
+  disease_group: z.string().min(1).max(50),
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  payload: z.record(z.unknown()).default({})
+});
+
+const locationsSchema = z.object({
+  facility_id: z.string().min(1).max(20),
+  report_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  source_generated_at: z.string().datetime(),
+  locations: z.array(locationItemSchema).max(10000).default([])
 });
 
 app.get("/health", async (_req, res) => {
@@ -124,6 +139,69 @@ app.post("/api/v1/etl/summary", requireEtlToken, async (req, res) => {
   } catch (error) {
     await client.query("ROLLBACK");
     console.error("Failed to store ETL summary", {
+      facility_id: data.facility_id,
+      report_date: data.report_date,
+      error: error.message,
+      code: error.code
+    });
+    return res.status(500).json({ error: "store_failed" });
+  } finally {
+    client.release();
+  }
+});
+
+app.post("/api/v1/etl/ncd-house-locations", requireEtlToken, async (req, res) => {
+  const parsed = locationsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "invalid_payload", details: parsed.error.flatten() });
+  }
+
+  const data = parsed.data;
+  if (req.etl.facility_id !== data.facility_id) {
+    return res.status(403).json({ error: "facility_token_mismatch" });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `DELETE FROM ncd_house_locations
+       WHERE facility_id = $1
+         AND report_date = $2`,
+      [data.facility_id, data.report_date]
+    );
+
+    for (const item of data.locations) {
+      await client.query(
+        `INSERT INTO ncd_house_locations (
+           facility_id, report_date, patient_hash, disease_group,
+           latitude, longitude, source_generated_at, payload
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (facility_id, report_date, patient_hash, disease_group) DO UPDATE SET
+           latitude = EXCLUDED.latitude,
+           longitude = EXCLUDED.longitude,
+           source_generated_at = EXCLUDED.source_generated_at,
+           payload = EXCLUDED.payload,
+           received_at = NOW()`,
+        [
+          data.facility_id,
+          data.report_date,
+          item.patient_hash,
+          item.disease_group,
+          item.latitude,
+          item.longitude,
+          data.source_generated_at,
+          item.payload
+        ]
+      );
+    }
+
+    await client.query("COMMIT");
+    return res.status(202).json({ status: "accepted", locations: data.locations.length });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Failed to store NCD house locations", {
       facility_id: data.facility_id,
       report_date: data.report_date,
       error: error.message,
@@ -351,6 +429,69 @@ app.get("/api/v1/dashboard/disease-groups/range", async (req, res) => {
   );
 
   res.json({ start_date: startDate, end_date: endDate, data: result.rows });
+});
+
+app.get("/api/v1/dashboard/ncd-house-locations", async (req, res) => {
+  const startDate = typeof req.query.start_date === "string" ? req.query.start_date : null;
+  const endDate = typeof req.query.end_date === "string" ? req.query.end_date : null;
+  const facilityId = typeof req.query.facility_id === "string" && req.query.facility_id ? req.query.facility_id : null;
+  const diseaseGroup = typeof req.query.disease_group === "string" && req.query.disease_group ? req.query.disease_group : null;
+
+  if (!startDate || !endDate) {
+    return res.status(400).json({ error: "start_date_and_end_date_required" });
+  }
+
+  const params = [startDate, endDate];
+  const filters = ["l.report_date BETWEEN $1::date AND $2::date"];
+  if (facilityId) {
+    filters.push(`l.facility_id = $${params.push(facilityId)}`);
+  }
+  if (diseaseGroup) {
+    filters.push(`l.disease_group = $${params.push(diseaseGroup)}`);
+  }
+
+  const result = await query(
+    `WITH selected AS (
+       SELECT DISTINCT ON (l.facility_id, l.patient_hash, l.disease_group)
+         l.facility_id,
+         f.facility_name,
+         l.report_date,
+         l.patient_hash,
+         l.disease_group,
+         l.latitude::float AS latitude,
+         l.longitude::float AS longitude
+       FROM ncd_house_locations l
+       JOIN facilities f ON f.facility_id = l.facility_id
+       WHERE ${filters.join(" AND ")}
+       ORDER BY l.facility_id, l.patient_hash, l.disease_group, l.report_date DESC
+     )
+     SELECT
+       facility_id,
+       facility_name,
+       report_date,
+       disease_group,
+       latitude,
+       longitude,
+       COUNT(*) OVER ()::int AS total_locations
+     FROM selected
+     ORDER BY report_date DESC, facility_id, disease_group
+     LIMIT 5000`,
+    params
+  );
+
+  const groups = result.rows.reduce((acc, row) => {
+    acc[row.disease_group] = (acc[row.disease_group] || 0) + 1;
+    return acc;
+  }, {});
+
+  res.json({
+    start_date: startDate,
+    end_date: endDate,
+    total_locations: result.rows[0]?.total_locations || 0,
+    returned_locations: result.rows.length,
+    groups,
+    data: result.rows.map(({ total_locations, ...row }) => row)
+  });
 });
 
 app.get("/api/v1/dashboard/available-years", async (_req, res) => {

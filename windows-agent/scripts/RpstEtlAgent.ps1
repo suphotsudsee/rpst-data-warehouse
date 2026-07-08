@@ -50,6 +50,19 @@ function New-Jwt {
   return "$unsigned.$signature"
 }
 
+function New-PatientHash {
+  param(
+    [string]$Secret,
+    [string]$FacilityId,
+    [string]$PatientKey
+  )
+  $encoding = [Text.Encoding]::UTF8
+  $hmac = New-Object System.Security.Cryptography.HMACSHA256
+  $hmac.Key = $encoding.GetBytes($Secret)
+  $hashBytes = $hmac.ComputeHash($encoding.GetBytes("$FacilityId|$PatientKey"))
+  return ([BitConverter]::ToString($hashBytes)).Replace("-", "").ToLowerInvariant()
+}
+
 function Invoke-OdbcScalar {
   param(
     [string]$ConnectionString,
@@ -75,6 +88,38 @@ function Invoke-OdbcScalar {
       return 0
     }
     return [int]$value
+  }
+  finally {
+    if ($connection.State -ne "Closed") {
+      $connection.Close()
+    }
+  }
+}
+
+function Invoke-OdbcRows {
+  param(
+    [string]$ConnectionString,
+    [string]$Sql,
+    [string]$ReportDate
+  )
+  $connection = New-Object System.Data.Odbc.OdbcConnection($ConnectionString)
+  try {
+    $connection.Open()
+    $command = $connection.CreateCommand()
+    $command.CommandText = $Sql
+    $reportDateValue = [DateTime]::ParseExact($ReportDate, "yyyy-MM-dd", $null)
+    $parameterCount = ([regex]::Matches($Sql, "\?")).Count
+    if ($parameterCount -eq 0) {
+      throw "SQL query must contain at least one ? report date parameter."
+    }
+    for ($index = 0; $index -lt $parameterCount; $index++) {
+      $parameter = $command.Parameters.Add("@report_date$index", [System.Data.Odbc.OdbcType]::Date)
+      $parameter.Value = $reportDateValue
+    }
+    $adapter = New-Object System.Data.Odbc.OdbcDataAdapter($command)
+    $table = New-Object System.Data.DataTable
+    [void]$adapter.Fill($table)
+    return $table.Rows
   }
   finally {
     if ($connection.State -ne "Closed") {
@@ -133,6 +178,25 @@ function Get-SampleMetrics {
   }
 }
 
+function Get-SampleLocations {
+  param($Config, [string]$ReportDate)
+  $seed = [Math]::Abs($ReportDate.GetHashCode()) % 100
+  $baseLat = 13.7563 + (($seed % 10) * 0.01)
+  $baseLng = 100.5018 + (($seed % 10) * 0.01)
+  $rows = @()
+  for ($index = 0; $index -lt 16; $index++) {
+    $patientKey = "sample-$ReportDate-$index"
+    $rows += @{
+      patient_hash = New-PatientHash $Config.JwtSecret $Config.FacilityId $patientKey
+      disease_group = $(if ($index % 2 -eq 0) { "DM" } else { "HT" })
+      latitude = [Math]::Round($baseLat + (($index % 4) * 0.006), 7)
+      longitude = [Math]::Round($baseLng + ([Math]::Floor($index / 4) * 0.006), 7)
+      payload = @{}
+    }
+  }
+  return $rows
+}
+
 function Get-OdbcMetrics {
   param($Config, [string]$ReportDate)
   $sql = $Config.Sql
@@ -164,6 +228,55 @@ function Get-OdbcMetrics {
       copd_emphysema = Invoke-OptionalOdbcScalar $sql "DiseaseCopdEmphysema" $Config.OdbcConnectionString $ReportDate
     }
   }
+}
+
+function Get-OdbcLocations {
+  param($Config, [string]$ReportDate)
+  if ($null -eq $Config.Sql -or -not ($Config.Sql.PSObject.Properties.Name -contains "NcdHouseLocations")) {
+    return @()
+  }
+  $query = $Config.Sql.NcdHouseLocations
+  if ([string]::IsNullOrWhiteSpace($query)) {
+    return @()
+  }
+
+  $rows = @()
+  $dataRows = Invoke-OdbcRows $Config.OdbcConnectionString $query $ReportDate
+  foreach ($row in $dataRows) {
+    if (-not $row.Table.Columns.Contains("patient_key") -or -not $row.Table.Columns.Contains("latitude") -or -not $row.Table.Columns.Contains("longitude")) {
+      throw "NcdHouseLocations SQL must return patient_key, disease_group, latitude, longitude."
+    }
+    $patientKey = [string]$row["patient_key"]
+    if ([string]::IsNullOrWhiteSpace($patientKey)) {
+      continue
+    }
+
+    $latitude = 0.0
+    $longitude = 0.0
+    if (-not [double]::TryParse(([string]$row["latitude"]), [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$latitude)) {
+      continue
+    }
+    if (-not [double]::TryParse(([string]$row["longitude"]), [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$longitude)) {
+      continue
+    }
+    if ($latitude -lt -90 -or $latitude -gt 90 -or $longitude -lt -180 -or $longitude -gt 180) {
+      continue
+    }
+
+    $diseaseGroup = "NCD"
+    if ($row.Table.Columns.Contains("disease_group") -and -not [string]::IsNullOrWhiteSpace([string]$row["disease_group"])) {
+      $diseaseGroup = [string]$row["disease_group"]
+    }
+
+    $rows += @{
+      patient_hash = New-PatientHash $Config.JwtSecret $Config.FacilityId $patientKey
+      disease_group = $diseaseGroup
+      latitude = $latitude
+      longitude = $longitude
+      payload = @{}
+    }
+  }
+  return $rows
 }
 
 function Remove-OldLogs {
@@ -239,6 +352,25 @@ try {
 
   $response = Invoke-RestMethod -Method Post -Uri $config.CentralApiUrl -Headers $headers -Body ([Text.Encoding]::UTF8.GetBytes($body)) -TimeoutSec 30
   Write-AgentLog "Sent successfully. Response: $($response | ConvertTo-Json -Compress)"
+
+  if (-not [string]::IsNullOrWhiteSpace($config.CentralLocationsApiUrl)) {
+    if ($config.DataSourceKind -eq "odbc") {
+      $locations = @(Get-OdbcLocations $config $reportDate)
+    }
+    else {
+      $locations = @(Get-SampleLocations $config $reportDate)
+    }
+
+    $locationBody = @{
+      facility_id = $config.FacilityId
+      report_date = $reportDate
+      source_generated_at = [DateTimeOffset]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
+      locations = $locations
+    } | ConvertTo-Json -Depth 6
+
+    $locationResponse = Invoke-RestMethod -Method Post -Uri $config.CentralLocationsApiUrl -Headers $headers -Body ([Text.Encoding]::UTF8.GetBytes($locationBody)) -TimeoutSec 60
+    Write-AgentLog "Sent NCD house locations. Count: $($locations.Count). Response: $($locationResponse | ConvertTo-Json -Compress)"
+  }
   exit 0
 }
 catch {

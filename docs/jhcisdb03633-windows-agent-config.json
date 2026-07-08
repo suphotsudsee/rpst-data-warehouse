@@ -4,6 +4,7 @@
   "District": "Mueang",
   "Province": "Sample Province",
   "CentralApiUrl": "https://central.example.go.th/api/v1/etl/summary",
+  "CentralLocationsApiUrl": "https://central.example.go.th/api/v1/etl/ncd-house-locations",
   "JwtSecret": "change_this_to_the_same_secret_as_central_api",
   "JwtIssuer": "rpst-etl",
   "JwtAudience": "rpst-central-api",
@@ -23,7 +24,8 @@
     "VaccineVisits": "SELECT COUNT(*) FROM visitepi e WHERE e.dateepi = ?",
     "HomeVisits": "SELECT COUNT(DISTINCT h.pcucode, h.visitno) FROM visithomehealthindividual h JOIN visit v ON v.pcucode = h.pcucode AND v.visitno = h.visitno WHERE v.visitdate = ?",
     "ReferOut": "SELECT COUNT(*) FROM visitrefer r WHERE DATE(r.datetimerefer) = ?",
-    "EmergencyCases": "SELECT COUNT(*) FROM visit v WHERE v.visitdate = ? AND v.typein = '4'"
+    "EmergencyCases": "SELECT COUNT(*) FROM visit v WHERE v.visitdate = ? AND v.typein = '4'",
+    "NcdHouseLocations": "SELECT DISTINCT CONCAT(v.pcucodeperson, ':', v.pid) AS patient_key, CASE WHEN d.diagcode REGEXP '^E1[0-4]' THEN 'DM' WHEN d.diagcode REGEXP '^I1[0-5]' THEN 'HT' ELSE 'NCD' END AS disease_group, CAST(TRIM(h.ygis) AS DECIMAL(10,7)) AS latitude, CAST(TRIM(h.xgis) AS DECIMAL(10,7)) AS longitude FROM visit v JOIN visitdiag d ON d.pcucode = v.pcucode AND d.visitno = v.visitno JOIN person p ON p.pcucodeperson = v.pcucodeperson AND p.pid = v.pid JOIN house h ON h.pcucode = p.pcucodeperson AND h.hcode = p.hcode WHERE v.visitdate = ? AND (d.diagcode REGEXP '^E1[0-4]' OR d.diagcode REGEXP '^I1[0-5]') AND TRIM(h.ygis) REGEXP '^-?[0-9]+(\\\\.[0-9]+)?$' AND TRIM(h.xgis) REGEXP '^-?[0-9]+(\\\\.[0-9]+)?$' AND CAST(TRIM(h.ygis) AS DECIMAL(10,7)) BETWEEN 5 AND 21 AND CAST(TRIM(h.xgis) AS DECIMAL(10,7)) BETWEEN 97 AND 106"
   },
   "ReportDate": "",
   "LogRetentionDays": 30

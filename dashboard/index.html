@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>RPST NCD Dashboard</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -18,6 +19,7 @@
       <nav>
         <a class="active" href="#overview" data-nav-target="overview">ภาพรวมจังหวัด</a>
         <a href="#ncd-section" data-nav-target="ncd-section">NCD DM/HT</a>
+        <a href="#map-section" data-nav-target="map-section">NCD Map</a>
         <a href="#facility-section" data-nav-target="facility-section">หน่วยบริการ</a>
       </nav>
     </aside>
@@ -129,6 +131,18 @@
         <canvas id="diseaseGroupBar" height="360"></canvas>
       </section>
 
+      <section id="map-section" class="panel map-panel">
+        <div class="panel-title">
+          <div>
+            <h2>NCD House Map</h2>
+            <span id="mapCaption">House coordinates for NCD patients in the selected range</span>
+          </div>
+          <div id="mapLegend" class="legend compact"></div>
+        </div>
+        <div id="ncdMap" class="map-canvas" role="img" aria-label="NCD house location map"></div>
+        <p id="mapStatus" class="map-status">Loading map</p>
+      </section>
+
       <section id="facility-section" class="panel table-panel">
         <div class="panel-title">
           <div>
@@ -182,6 +196,7 @@
       </section>
     </div>
 
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

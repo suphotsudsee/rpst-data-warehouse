@@ -259,6 +259,32 @@ button {
   margin-bottom: 14px;
 }
 
+.map-panel {
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 14px;
+  padding: 16px;
+}
+
+.map-canvas {
+  width: 100%;
+  height: 520px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #e8eef6;
+}
+
+.map-status {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.legend.compact {
+  justify-content: flex-end;
+  margin-top: 0;
+}
+
 .panel-title {
   display: flex;
   align-items: center;
@@ -269,6 +295,7 @@ button {
 
 #overview,
 #ncd-section,
+#map-section,
 #facility-section {
   scroll-margin-top: 18px;
 }

@@ -13,6 +13,17 @@ const palette = {
   muted: "#6b768a"
 };
 
+const diseaseColors = {
+  DM: palette.red,
+  HT: palette.amber,
+  DM_HT: palette.purple,
+  NCD: palette.blue,
+  OTHER_NCD: palette.slate
+};
+
+let ncdMap = null;
+let ncdLocationLayer = null;
+
 const currentBeYear = new Date().getFullYear() + 543;
 const yearState = {
   mode: "calendar",
@@ -323,6 +334,87 @@ function updateLegend(items) {
   ).join("");
 }
 
+function colorForDiseaseGroup(group) {
+  return diseaseColors[group] || palette.teal;
+}
+
+function initNcdMap() {
+  const mapElement = document.getElementById("ncdMap");
+  if (!mapElement || ncdMap || typeof L === "undefined") return;
+
+  ncdMap = L.map(mapElement, {
+    preferCanvas: true,
+    scrollWheelZoom: false
+  }).setView([13.7563, 100.5018], 8);
+
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap contributors"
+  }).addTo(ncdMap);
+
+  ncdLocationLayer = L.layerGroup().addTo(ncdMap);
+}
+
+function renderMapLocations(locationResult, scopeText) {
+  const status = document.getElementById("mapStatus");
+  const legend = document.getElementById("mapLegend");
+  const caption = document.getElementById("mapCaption");
+  caption.textContent = `House coordinates for NCD patients · ${scopeText}`;
+
+  if (typeof L === "undefined") {
+    status.textContent = "Map library is unavailable";
+    return;
+  }
+
+  initNcdMap();
+  ncdLocationLayer.clearLayers();
+
+  const rows = locationResult.data || [];
+  const groupCounts = {};
+  rows.forEach((row) => {
+    groupCounts[row.disease_group] = (groupCounts[row.disease_group] || 0) + 1;
+  });
+
+  legend.innerHTML = Object.entries(groupCounts).map(([group, count]) =>
+    `<span style="--dot:${colorForDiseaseGroup(group)}">${escapeHtml(group)} ${formatNumber(count)}</span>`
+  ).join("");
+
+  if (!rows.length) {
+    status.textContent = "No house coordinates found for the selected range";
+    ncdMap.setView([13.7563, 100.5018], 8);
+    setTimeout(() => ncdMap.invalidateSize(), 0);
+    return;
+  }
+
+  const bounds = [];
+  rows.forEach((row) => {
+    const lat = Number(row.latitude);
+    const lng = Number(row.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    bounds.push([lat, lng]);
+    L.circleMarker([lat, lng], {
+      radius: 6,
+      color: colorForDiseaseGroup(row.disease_group),
+      fillColor: colorForDiseaseGroup(row.disease_group),
+      fillOpacity: 0.74,
+      weight: 1
+    })
+      .bindPopup(`
+        <strong>${escapeHtml(row.disease_group)}</strong><br>
+        ${escapeHtml(row.facility_name || row.facility_id)}<br>
+        ${escapeHtml(row.report_date)}
+      `)
+      .addTo(ncdLocationLayer);
+  });
+
+  if (bounds.length) {
+    ncdMap.fitBounds(bounds, { padding: [24, 24], maxZoom: 15 });
+  }
+  setTimeout(() => ncdMap.invalidateSize(), 0);
+  status.textContent = `${formatNumber(rows.length)} shown` +
+    (locationResult.total_locations > rows.length ? ` of ${formatNumber(locationResult.total_locations)}` : "");
+}
+
 function sumRows(rows) {
   return rows.reduce((acc, row) => {
     [
@@ -445,11 +537,13 @@ async function loadOverview() {
   const facilityText = facilitySelect.value ? facilitySelect.options[facilitySelect.selectedIndex].textContent : "";
 
   statusText.textContent = "Loading";
-  const [trends, facilityRange, diseaseGroups] = await Promise.all([
+  const [trends, facilityRange, diseaseGroups, locations] = await Promise.all([
     fetchJson(`${apiBaseUrl}/api/v1/dashboard/trends?${queryParams}`),
     fetchJson(`${apiBaseUrl}/api/v1/dashboard/facilities/range?${queryParams}`),
     fetchJson(`${apiBaseUrl}/api/v1/dashboard/disease-groups/range?${queryParams}`)
-      .catch(() => ({ data: diseaseGroupLabels.map((label) => ({ disease_label: label, patients: 0 })) }))
+      .catch(() => ({ data: diseaseGroupLabels.map((label) => ({ disease_label: label, patients: 0 })) })),
+    fetchJson(`${apiBaseUrl}/api/v1/dashboard/ncd-house-locations?${queryParams}`)
+      .catch(() => ({ data: [], total_locations: 0, returned_locations: 0, groups: {} }))
   ]);
 
   const trendRows = trends.data || [];
@@ -507,6 +601,7 @@ async function loadOverview() {
       value: Number(item.patients || 0)
     }))
   );
+  renderMapLocations(locations, scopeText);
 
   const rows = document.getElementById("facilityRows");
   rows.innerHTML = "";

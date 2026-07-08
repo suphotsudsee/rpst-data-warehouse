@@ -8,11 +8,13 @@ param(
   [string]$FacilityId = "03633",
   [string]$FacilityName = "JHCIS 03633",
   [string]$CentralApiUrl = "http://localhost:8080/api/v1/etl/summary",
+  [string]$CentralLocationsApiUrl = "http://localhost:8080/api/v1/etl/ncd-house-locations",
   [string]$JwtSecret = "change_this_to_a_long_random_secret",
   [string]$JwtIssuer = "rpst-etl",
   [string]$JwtAudience = "rpst-central-api",
   [string]$MySqlClientPath = "",
-  [string]$WorkDir = ""
+  [string]$WorkDir = "",
+  [switch]$SkipLocations
 )
 
 $ErrorActionPreference = "Stop"
@@ -52,6 +54,19 @@ function New-Jwt {
   $hmac.Key = $encoding.GetBytes($Secret)
   $signature = ConvertTo-Base64Url ($hmac.ComputeHash($encoding.GetBytes($unsigned)))
   return "$unsigned.$signature"
+}
+
+function New-PatientHash {
+  param(
+    [string]$Secret,
+    [string]$FacilityId,
+    [string]$PatientKey
+  )
+  $encoding = [Text.Encoding]::UTF8
+  $hmac = New-Object System.Security.Cryptography.HMACSHA256
+  $hmac.Key = $encoding.GetBytes($Secret)
+  $hashBytes = $hmac.ComputeHash($encoding.GetBytes("$FacilityId|$PatientKey"))
+  return ([BitConverter]::ToString($hashBytes)).Replace("-", "").ToLowerInvariant()
 }
 
 function Read-Secret {
@@ -154,8 +169,10 @@ if ([string]::IsNullOrWhiteSpace($dbPassword)) {
 }
 
 $sqlPath = Join-Path $WorkDir "jhcis-history-import.sql"
+$locationSqlPath = Join-Path $WorkDir "jhcis-history-locations.sql"
 $envPath = Join-Path $WorkDir "jhcis-history-mysql.env"
 $outPath = Join-Path $WorkDir "jhcis-history-result.tsv"
+$locationOutPath = Join-Path $WorkDir "jhcis-history-locations.tsv"
 
 $sql = @"
 SET @start_date = '$StartDate';
@@ -346,6 +363,66 @@ ORDER BY report_date, metric;
 Set-Content -Path $sqlPath -Value $sql -Encoding UTF8
 Invoke-MySqlFile $sqlPath $outPath $dbPassword $envPath
 
+$locationsByDate = @{}
+if (-not $SkipLocations -and -not [string]::IsNullOrWhiteSpace($CentralLocationsApiUrl)) {
+  $locationSql = @"
+SET @start_date = '$StartDate';
+SET @end_date = '$EndDate';
+
+SELECT DISTINCT
+  DATE_FORMAT(v.visitdate, '%Y-%m-%d') AS report_date,
+  CONCAT(v.pcucodeperson, ':', v.pid) AS patient_key,
+  CASE
+    WHEN dg.diagcode REGEXP '^E1[0-4]' THEN 'DM'
+    WHEN dg.diagcode REGEXP '^I1[0-5]' THEN 'HT'
+    ELSE 'NCD'
+  END AS disease_group,
+  CAST(TRIM(h.ygis) AS DECIMAL(10,7)) AS latitude,
+  CAST(TRIM(h.xgis) AS DECIMAL(10,7)) AS longitude
+FROM visit v
+JOIN visitdiag dg
+  ON dg.pcucode = v.pcucode
+ AND dg.visitno = v.visitno
+JOIN person p
+  ON p.pcucodeperson = v.pcucodeperson
+ AND p.pid = v.pid
+JOIN house h
+  ON h.pcucode = p.pcucodeperson
+ AND h.hcode = p.hcode
+WHERE v.visitdate BETWEEN @start_date AND @end_date
+  AND (
+    dg.diagcode REGEXP '^E1[0-4]'
+    OR dg.diagcode REGEXP '^I1[0-5]'
+  )
+  AND TRIM(h.ygis) REGEXP '^-?[0-9]+(\\.[0-9]+)?$'
+  AND TRIM(h.xgis) REGEXP '^-?[0-9]+(\\.[0-9]+)?$'
+  AND CAST(TRIM(h.ygis) AS DECIMAL(10,7)) BETWEEN 5 AND 21
+  AND CAST(TRIM(h.xgis) AS DECIMAL(10,7)) BETWEEN 97 AND 106
+ORDER BY report_date, patient_key, disease_group;
+"@
+
+  Set-Content -Path $locationSqlPath -Value $locationSql -Encoding UTF8
+  Invoke-MySqlFile $locationSqlPath $locationOutPath $dbPassword $envPath
+
+  $locationLines = Get-Content -Path $locationOutPath -Encoding UTF8
+  if ($locationLines.Count -ge 2) {
+    $locationHeaders = $locationLines[0] -split "`t"
+    foreach ($line in $locationLines[1..($locationLines.Count - 1)]) {
+      if ([string]::IsNullOrWhiteSpace($line)) { continue }
+      $parts = $line -split "`t", $locationHeaders.Count
+      $record = @{}
+      for ($i = 0; $i -lt $locationHeaders.Count; $i++) {
+        $record[$locationHeaders[$i]] = $parts[$i]
+      }
+      $dateKey = $record.report_date
+      if (-not $locationsByDate.ContainsKey($dateKey)) {
+        $locationsByDate[$dateKey] = New-Object System.Collections.ArrayList
+      }
+      [void]$locationsByDate[$dateKey].Add($record)
+    }
+  }
+}
+
 $lines = Get-Content -Path $outPath -Encoding UTF8
 $byDate = @{}
 
@@ -373,6 +450,9 @@ $start = [DateTime]::ParseExact($StartDate, "yyyy-MM-dd", $null)
 $end = [DateTime]::ParseExact($EndDate, "yyyy-MM-dd", $null)
 $sent = 0
 $failed = 0
+$locationSent = 0
+$locationFailed = 0
+$locationRecordsSent = 0
 
 for ($day = $start; $day -le $end; $day = $day.AddDays(1)) {
   $dateText = $day.ToString("yyyy-MM-dd")
@@ -440,6 +520,44 @@ for ($day = $start; $day -le $end; $day = $day.AddDays(1)) {
     $failed += 1
     Write-Warning "Failed to send ${dateText}: $($_.Exception.Message)"
   }
+
+  if (-not $SkipLocations -and -not [string]::IsNullOrWhiteSpace($CentralLocationsApiUrl)) {
+    $locationRows = @($locationsByDate[$dateText])
+    $locations = @()
+    foreach ($locationRow in $locationRows) {
+      if ($null -eq $locationRow) { continue }
+      $locations += @{
+        patient_hash = New-PatientHash $JwtSecret $FacilityId $locationRow.patient_key
+        disease_group = $locationRow.disease_group
+        latitude = [double]::Parse($locationRow.latitude, [Globalization.CultureInfo]::InvariantCulture)
+        longitude = [double]::Parse($locationRow.longitude, [Globalization.CultureInfo]::InvariantCulture)
+        payload = @{}
+      }
+    }
+
+    $locationBody = @{
+      facility_id = $FacilityId
+      report_date = $dateText
+      source_generated_at = [DateTimeOffset]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
+      locations = $locations
+    } | ConvertTo-Json -Depth 6
+
+    try {
+      $locationToken = New-Jwt $JwtSecret $JwtIssuer $JwtAudience $FacilityId
+      Invoke-RestMethod `
+        -Method Post `
+        -Uri $CentralLocationsApiUrl `
+        -Headers @{ Authorization = "Bearer $locationToken"; "Content-Type" = "application/json; charset=utf-8" } `
+        -Body ([Text.Encoding]::UTF8.GetBytes($locationBody)) `
+        -TimeoutSec 60 | Out-Null
+      $locationSent += 1
+      $locationRecordsSent += $locations.Count
+    }
+    catch {
+      $locationFailed += 1
+      Write-Warning "Failed to send locations for ${dateText}: $($_.Exception.Message)"
+    }
+  }
 }
 
 [pscustomobject]@{
@@ -450,4 +568,8 @@ for ($day = $start; $day -le $end; $day = $day.AddDays(1)) {
   aggregate_days_with_data = $byDate.Count
   calendar_days_sent = $sent
   failed = $failed
+  location_days_with_data = $locationsByDate.Count
+  location_days_sent = $locationSent
+  location_records_sent = $locationRecordsSent
+  location_failed = $locationFailed
 }
