@@ -164,6 +164,15 @@ function Invoke-MySqlFile {
   }
 }
 
+function Set-Utf8NoBomContent {
+  param(
+    [string]$Path,
+    [string]$Value
+  )
+  $encoding = New-Object System.Text.UTF8Encoding($false)
+  [System.IO.File]::WriteAllText($Path, $Value, $encoding)
+}
+
 $dbPassword = $env:JHCIS_DB_PASSWORD
 if ([string]::IsNullOrWhiteSpace($dbPassword)) {
   $dbPassword = Read-Secret "JHCIS DB password"
@@ -363,7 +372,7 @@ GROUP BY v.visitdate
 ORDER BY report_date, metric;
 "@
 
-Set-Content -Path $sqlPath -Value $sql -Encoding UTF8
+Set-Utf8NoBomContent $sqlPath $sql
 Invoke-MySqlFile $sqlPath $outPath $dbPassword $envPath
 
 $locationsByDate = @{}
@@ -404,7 +413,7 @@ WHERE v.visitdate BETWEEN @start_date AND @end_date
 ORDER BY report_date, patient_key, disease_group;
 "@
 
-  Set-Content -Path $locationSqlPath -Value $locationSql -Encoding UTF8
+  Set-Utf8NoBomContent $locationSqlPath $locationSql
   Invoke-MySqlFile $locationSqlPath $locationOutPath $dbPassword $envPath
 
   $locationLines = Get-Content -Path $locationOutPath -Encoding UTF8
@@ -495,7 +504,7 @@ WHERE v.visitdate BETWEEN @start_date AND @end_date
   AND CAST(TRIM(h.xgis) AS DECIMAL(10,7)) BETWEEN 5 AND 21
   AND CAST(TRIM(h.ygis) AS DECIMAL(10,7)) BETWEEN 97 AND 106;
 "@
-    Set-Content -Path $locationDiagnosticSqlPath -Value $locationDiagnosticSql -Encoding UTF8
+    Set-Utf8NoBomContent $locationDiagnosticSqlPath $locationDiagnosticSql
     Invoke-MySqlFile $locationDiagnosticSqlPath $locationDiagnosticOutPath $dbPassword $envPath
     Write-Warning "No NCD house location rows returned. Diagnostics written to $locationDiagnosticOutPath"
     Get-Content -Path $locationDiagnosticOutPath -Encoding UTF8 | ForEach-Object { Write-Warning $_ }
