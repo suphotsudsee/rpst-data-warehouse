@@ -343,7 +343,6 @@ function initNcdMap() {
   if (!mapElement || ncdMap || typeof L === "undefined") return;
 
   ncdMap = L.map(mapElement, {
-    preferCanvas: true,
     scrollWheelZoom: false
   }).setView([13.7563, 100.5018], 8);
 
