@@ -179,12 +179,66 @@ if ([string]::IsNullOrWhiteSpace($dbPassword)) {
 }
 
 $sqlPath = Join-Path $WorkDir "jhcis-history-import.sql"
+$facilitySqlPath = Join-Path $WorkDir "jhcis-facility-info.sql"
 $locationSqlPath = Join-Path $WorkDir "jhcis-history-locations.sql"
 $locationDiagnosticSqlPath = Join-Path $WorkDir "jhcis-history-location-diagnostics.sql"
 $envPath = Join-Path $WorkDir "jhcis-history-mysql.env"
 $outPath = Join-Path $WorkDir "jhcis-history-result.tsv"
+$facilityOutPath = Join-Path $WorkDir "jhcis-facility-info.tsv"
 $locationOutPath = Join-Path $WorkDir "jhcis-history-locations.tsv"
 $locationDiagnosticOutPath = Join-Path $WorkDir "jhcis-history-location-diagnostics.tsv"
+
+$facilitySql = @"
+SELECT
+  office.offid,
+  chospital.hosname,
+  chospital.hostype,
+  chospital.address,
+  chospital.road,
+  chospital.mu,
+  chospital.subdistcode,
+  chospital.distcode,
+  chospital.provcode,
+  cprovince.provname,
+  cdistrict.distname,
+  csubdistrict.subdistname
+FROM office
+INNER JOIN chospital ON office.offid = chospital.hoscode
+INNER JOIN cprovince ON chospital.provcode = cprovince.provcode
+INNER JOIN cdistrict ON chospital.provcode = cdistrict.provcode AND chospital.distcode = cdistrict.distcode
+INNER JOIN csubdistrict ON chospital.provcode = csubdistrict.provcode AND chospital.distcode = csubdistrict.distcode AND chospital.subdistcode = csubdistrict.subdistcode
+LIMIT 1;
+"@
+
+Set-Utf8NoBomContent $facilitySqlPath $facilitySql
+Invoke-MySqlFile $facilitySqlPath $facilityOutPath $dbPassword $envPath
+
+$facilityInfo = @{
+  facility_id = $FacilityId
+  facility_name = $FacilityName
+  subdistrict = $null
+  district = $null
+  province = $null
+}
+$facilityLines = Get-Content -Path $facilityOutPath -Encoding UTF8
+if ($facilityLines.Count -ge 2) {
+  $facilityHeaders = $facilityLines[0] -split "`t"
+  $facilityParts = $facilityLines[1] -split "`t", $facilityHeaders.Count
+  $facilityRecord = @{}
+  for ($i = 0; $i -lt $facilityHeaders.Count; $i++) {
+    $facilityRecord[$facilityHeaders[$i]] = $facilityParts[$i]
+  }
+  if (-not [string]::IsNullOrWhiteSpace($facilityRecord.offid)) {
+    $facilityInfo.facility_id = $facilityRecord.offid
+  }
+  if (-not [string]::IsNullOrWhiteSpace($facilityRecord.hosname)) {
+    $facilityInfo.facility_name = $facilityRecord.hosname
+  }
+  $facilityInfo.subdistrict = $facilityRecord.subdistname
+  $facilityInfo.district = $facilityRecord.distname
+  $facilityInfo.province = $facilityRecord.provname
+}
+$EffectiveFacilityId = $facilityInfo.facility_id
 
 $sql = @"
 SET @start_date = '$StartDate';
@@ -546,7 +600,7 @@ $locationRecordsSkipped = 0
 for ($day = $start; $day -le $end; $day = $day.AddDays(1)) {
   $dateText = $day.ToString("yyyy-MM-dd")
   $row = $byDate[$dateText]
-  $token = New-Jwt $JwtSecret $JwtIssuer $JwtAudience $FacilityId
+  $token = New-Jwt $JwtSecret $JwtIssuer $JwtAudience $EffectiveFacilityId
 
   function IntField([string]$name) {
     if ($null -eq $row -or [string]::IsNullOrWhiteSpace($row[$name]) -or $row[$name] -eq "NULL") {
@@ -556,10 +610,11 @@ for ($day = $start; $day -le $end; $day = $day.AddDays(1)) {
   }
 
   $body = @{
-    facility_id = $FacilityId
-    facility_name = $FacilityName
-    district = $null
-    province = $null
+    facility_id = $EffectiveFacilityId
+    facility_name = $facilityInfo.facility_name
+    subdistrict = $facilityInfo.subdistrict
+    district = $facilityInfo.district
+    province = $facilityInfo.province
     report_date = $dateText
     total_visits = IntField "total_visits"
     unique_patients = IntField "unique_patients"
@@ -624,7 +679,7 @@ for ($day = $start; $day -le $end; $day = $day.AddDays(1)) {
         continue
       }
       $locations += @{
-        patient_hash = New-PatientHash $JwtSecret $FacilityId $locationRow.patient_key
+        patient_hash = New-PatientHash $JwtSecret $EffectiveFacilityId $locationRow.patient_key
         disease_group = $locationRow.disease_group
         latitude = $latitude
         longitude = $longitude
@@ -633,14 +688,14 @@ for ($day = $start; $day -le $end; $day = $day.AddDays(1)) {
     }
 
     $locationBody = @{
-      facility_id = $FacilityId
+      facility_id = $EffectiveFacilityId
       report_date = $dateText
       source_generated_at = [DateTimeOffset]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
       locations = $locations
     } | ConvertTo-Json -Depth 6
 
     try {
-      $locationToken = New-Jwt $JwtSecret $JwtIssuer $JwtAudience $FacilityId
+      $locationToken = New-Jwt $JwtSecret $JwtIssuer $JwtAudience $EffectiveFacilityId
       Invoke-RestMethod `
         -Method Post `
         -Uri $CentralLocationsApiUrl `
@@ -659,7 +714,11 @@ for ($day = $start; $day -le $end; $day = $day.AddDays(1)) {
 
 [pscustomobject]@{
   database = $DbName
-  facility_id = $FacilityId
+  facility_id = $EffectiveFacilityId
+  facility_name = $facilityInfo.facility_name
+  subdistrict = $facilityInfo.subdistrict
+  district = $facilityInfo.district
+  province = $facilityInfo.province
   start_date = $StartDate
   end_date = $EndDate
   aggregate_days_with_data = $byDate.Count

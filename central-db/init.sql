@@ -1,6 +1,7 @@
 CREATE TABLE IF NOT EXISTS facilities (
   facility_id VARCHAR(20) PRIMARY KEY,
   facility_name TEXT NOT NULL,
+  subdistrict TEXT,
   district TEXT,
   province TEXT,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,

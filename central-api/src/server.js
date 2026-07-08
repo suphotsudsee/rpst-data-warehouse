@@ -15,6 +15,7 @@ app.use(express.json({ limit: "5mb" }));
 const summarySchema = z.object({
   facility_id: z.string().min(1).max(20),
   facility_name: z.string().min(1).max(255),
+  subdistrict: z.string().max(255).optional().nullable(),
   district: z.string().max(255).optional().nullable(),
   province: z.string().max(255).optional().nullable(),
   report_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -75,14 +76,15 @@ app.post("/api/v1/etl/summary", requireEtlToken, async (req, res) => {
   try {
     await client.query("BEGIN");
     await client.query(
-      `INSERT INTO facilities (facility_id, facility_name, district, province, updated_at)
-       VALUES ($1, $2, $3, $4, NOW())
+      `INSERT INTO facilities (facility_id, facility_name, subdistrict, district, province, updated_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())
        ON CONFLICT (facility_id) DO UPDATE SET
          facility_name = EXCLUDED.facility_name,
+         subdistrict = EXCLUDED.subdistrict,
          district = EXCLUDED.district,
          province = EXCLUDED.province,
          updated_at = NOW()`,
-      [data.facility_id, data.facility_name, data.district || null, data.province || null]
+      [data.facility_id, data.facility_name, data.subdistrict || null, data.district || null, data.province || null]
     );
 
     const result = await client.query(
@@ -215,7 +217,7 @@ app.post("/api/v1/etl/ncd-house-locations", requireEtlToken, async (req, res) =>
 
 app.get("/api/v1/facilities", async (_req, res) => {
   const result = await query(
-    `SELECT facility_id, facility_name, district, province, is_active, updated_at
+    `SELECT facility_id, facility_name, subdistrict, district, province, is_active, updated_at
      FROM facilities
      ORDER BY facility_name`
   );
@@ -247,6 +249,7 @@ app.get("/api/v1/admin/facility-data", requireAdminToken, async (_req, res) => {
      SELECT
        f.facility_id,
        f.facility_name,
+       f.subdistrict,
        f.district,
        f.province,
        COALESCE(s.summary_days, 0)::int AS summary_days,
@@ -321,7 +324,7 @@ app.get("/api/v1/dashboard/overview", async (req, res) => {
 
   const selected = await query(
     `SELECT DISTINCT ON (f.facility_id)
-       f.facility_id, f.facility_name, f.district, f.province,
+       f.facility_id, f.facility_name, f.subdistrict, f.district, f.province,
        s.report_date, s.total_visits, s.unique_patients, s.chronic_followups,
        s.ncd_dm_patients, s.ncd_ht_patients, s.ncd_dm_ht_patients,
        s.ncd_bp_screened, s.ncd_fbs_screened, s.missing_diagnosis,
@@ -431,6 +434,7 @@ app.get("/api/v1/dashboard/facilities/range", async (req, res) => {
     `SELECT
        f.facility_id,
        f.facility_name,
+       f.subdistrict,
        f.district,
        f.province,
        MIN(s.report_date) AS first_report_date,
@@ -456,7 +460,7 @@ app.get("/api/v1/dashboard/facilities/range", async (req, res) => {
        ON s.facility_id = f.facility_id
       AND s.report_date BETWEEN $1::date AND $2::date
      ${facilityWhere}
-     GROUP BY f.facility_id, f.facility_name, f.district, f.province
+     GROUP BY f.facility_id, f.facility_name, f.subdistrict, f.district, f.province
      ORDER BY total_visits DESC, f.facility_name`,
     params
   );

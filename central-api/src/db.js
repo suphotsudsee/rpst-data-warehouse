@@ -18,12 +18,18 @@ export async function ensureSchema() {
     CREATE TABLE IF NOT EXISTS facilities (
       facility_id VARCHAR(20) PRIMARY KEY,
       facility_name TEXT NOT NULL,
+      subdistrict TEXT,
       district TEXT,
       province TEXT,
       is_active BOOLEAN NOT NULL DEFAULT TRUE,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
+  `);
+
+  await query(`
+    ALTER TABLE facilities
+      ADD COLUMN IF NOT EXISTS subdistrict TEXT
   `);
 
   await query(`

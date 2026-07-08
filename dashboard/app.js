@@ -37,6 +37,9 @@ const yearState = {
 const formatNumber = (value) => new Intl.NumberFormat("th-TH").format(Number(value || 0));
 const formatDateTime = (value) => (value ? new Date(value).toLocaleString("th-TH") : "-");
 const compactDate = (value) => new Date(value).toLocaleDateString("th-TH", { month: "short", day: "numeric" });
+const facilityArea = (facility) => [facility.subdistrict, facility.district, facility.province]
+  .filter(Boolean)
+  .join(" / ") || "-";
 
 const diseaseGroupLabels = [
   "ไขมันในเลือดสูง",
@@ -570,6 +573,7 @@ async function loadAdminFacilities() {
       <td>${escapeHtml(facility.facility_id)}</td>
       <td>${escapeHtml(facility.facility_name || "")}</td>
       <td class="number">${formatNumber(facility.summary_days)}</td>
+      <td>${escapeHtml(facilityArea(facility))}</td>
       <td class="number">${formatNumber(facility.total_visits)}</td>
       <td class="number">${formatNumber(facility.ncd_dm_ht_patients)}</td>
       <td class="number">${formatNumber(facility.location_records)}</td>
@@ -725,6 +729,7 @@ async function loadOverview() {
       <td>${escapeHtml(facility.facility_id)}</td>
       <td>${escapeHtml(facility.facility_name)}</td>
       <td class="${facility.last_report_date ? "" : "missing"}">${rangeText}</td>
+      <td>${escapeHtml(facilityArea(facility))}</td>
       <td class="number">${formatNumber(facility.total_visits)}</td>
       <td class="number">${formatNumber(facility.ncd_dm_ht_patients)}</td>
       <td class="number">${formatNumber(facility.ncd_dm_patients)}</td>
@@ -767,7 +772,8 @@ async function loadFacilityOptions() {
     const result = await fetchJson(`${apiBaseUrl}/api/v1/facilities`);
     const facilities = result.data || [];
     select.innerHTML = `<option value="">ทุกหน่วยบริการ</option>` + facilities.map((facility) => {
-      const label = `${facility.facility_id} - ${facility.facility_name || ""}`.trim();
+      const area = facilityArea(facility);
+      const label = `${facility.facility_id} - ${facility.facility_name || ""}${area !== "-" ? ` (${area})` : ""}`.trim();
       return `<option value="${escapeHtml(facility.facility_id)}">${escapeHtml(label)}</option>`;
     }).join("");
   } catch {
