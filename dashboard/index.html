@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>RPST NCD Dashboard</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260708-facility-area-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260708-thai-clean-1" />
   </head>
   <body>
     <aside class="sidebar">
@@ -19,7 +19,7 @@
       <nav>
         <a class="active" href="#overview" data-nav-target="overview">ภาพรวมจังหวัด</a>
         <a href="#ncd-section" data-nav-target="ncd-section">NCD DM/HT</a>
-        <a href="#map-section" data-nav-target="map-section">NCD Map</a>
+        <a href="#map-section" data-nav-target="map-section">แผนที่ NCD</a>
         <a href="#facility-section" data-nav-target="facility-section">หน่วยบริการ</a>
         <a href="#admin-login-section" data-nav-target="admin-login-section">Admin Login</a>
         <a id="adminNavLink" href="#admin-section" data-nav-target="admin-section" hidden>จัดการข้อมูล</a>
@@ -31,7 +31,7 @@
         <div>
           <p class="eyebrow">JHCIS Data Warehouse</p>
           <h1>Dashboard ภาพรวม รพ.สต.</h1>
-          <p class="subtitle">ติดตามบริการรายวันและตัวชี้วัด NCD จากฐานข้อมูลสรุปส่วนกลาง</p>
+          <p class="subtitle">ติดตามบริการรายวัน ตัวชี้วัด NCD และพิกัดหลังคาเรือนจากข้อมูลสรุปส่วนกลาง</p>
         </div>
         <div class="toolbar">
           <button id="yearPickerButton" class="year-pill" type="button">
@@ -136,13 +136,13 @@
       <section id="map-section" class="panel map-panel">
         <div class="panel-title">
           <div>
-            <h2>NCD House Map</h2>
-            <span id="mapCaption">House coordinates for NCD patients in the selected range</span>
+            <h2>แผนที่บ้านผู้ป่วย NCD</h2>
+            <span id="mapCaption">พิกัดหลังคาเรือนของผู้ป่วย NCD ในช่วงที่เลือก</span>
           </div>
           <div id="mapLegend" class="legend compact"></div>
         </div>
         <div id="ncdMap" class="map-canvas" role="img" aria-label="NCD house location map"></div>
-        <p id="mapStatus" class="map-status">Loading map</p>
+        <p id="mapStatus" class="map-status">กำลังโหลดแผนที่</p>
       </section>
 
       <section id="facility-section" class="panel table-panel">
@@ -159,7 +159,7 @@
                 <th>รหัส</th>
                 <th>หน่วยบริการ</th>
                 <th>วันที่ข้อมูล</th>
-                <th>เธเธทเนเธเธ—เธตเน</th>
+                <th>พื้นที่</th>
                 <th>Visits</th>
                 <th>NCD</th>
                 <th>DM</th>
@@ -214,7 +214,7 @@
                 <th>รหัส</th>
                 <th>หน่วยบริการ</th>
                 <th>วันข้อมูล</th>
-                <th>เธเธทเนเธเธ—เธตเน</th>
+                <th>พื้นที่</th>
                 <th>Visits</th>
                 <th>NCD</th>
                 <th>พิกัด</th>
@@ -237,11 +237,11 @@
         </div>
         <div class="year-picker-body">
           <div class="year-tabs" role="tablist">
-            <button id="calendarTab" class="tab active" type="button" data-mode="calendar">ปี พ.ศ</button>
+            <button id="calendarTab" class="tab active" type="button" data-mode="calendar">ปี พ.ศ.</button>
             <button id="fiscalTab" class="tab" type="button" data-mode="fiscal">ปีงบประมาณ</button>
           </div>
           <div class="year-list-wrap">
-            <p id="yearListLabel">ตัวเลือก ปี พ.ศ</p>
+            <p id="yearListLabel">ตัวเลือก ปี พ.ศ.</p>
             <div id="yearList" class="year-list"></div>
           </div>
         </div>
@@ -249,6 +249,6 @@
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="./app.js?v=20260708-facility-area-1"></script>
+    <script src="./app.js?v=20260708-thai-clean-1"></script>
   </body>
 </html>

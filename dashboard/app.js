@@ -39,7 +39,7 @@ const formatDateTime = (value) => (value ? new Date(value).toLocaleString("th-TH
 const compactDate = (value) => new Date(value).toLocaleDateString("th-TH", { month: "short", day: "numeric" });
 const facilityArea = (facility) => [facility.subdistrict, facility.district, facility.province]
   .filter(Boolean)
-  .join(" / ") || "-";
+  .join(" · ") || "-";
 
 const diseaseGroupLabels = [
   "ไขมันในเลือดสูง",
@@ -499,7 +499,7 @@ function renderYearList() {
     ? yearState.availableYears
     : [currentBeYear, currentBeYear - 1, currentBeYear - 2, currentBeYear - 3, currentBeYear - 4];
 
-  label.textContent = yearState.pendingMode === "fiscal" ? "ตัวเลือก ปีงบประมาณ" : "ตัวเลือก ปี พ.ศ";
+  label.textContent = yearState.pendingMode === "fiscal" ? "ตัวเลือก ปีงบประมาณ" : "ตัวเลือก ปี พ.ศ.";
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.classList.toggle("active", tab.dataset.mode === yearState.pendingMode);
   });
@@ -568,7 +568,7 @@ async function loadAdminFacilities() {
     const tr = document.createElement("tr");
     const rangeText = facility.last_report_date
       ? `${compactDate(facility.first_report_date)}-${compactDate(facility.last_report_date)}`
-      : "-";
+      : "ยังไม่มีข้อมูล";
     tr.innerHTML = `
       <td>${escapeHtml(facility.facility_id)}</td>
       <td>${escapeHtml(facility.facility_name || "")}</td>
