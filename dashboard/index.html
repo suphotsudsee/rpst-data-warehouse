@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>RPST NCD Dashboard</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260708-ncd-map-2" />
+    <link rel="stylesheet" href="./styles.css?v=20260708-admin-1" />
   </head>
   <body>
     <aside class="sidebar">
@@ -21,6 +21,7 @@
         <a href="#ncd-section" data-nav-target="ncd-section">NCD DM/HT</a>
         <a href="#map-section" data-nav-target="map-section">NCD Map</a>
         <a href="#facility-section" data-nav-target="facility-section">หน่วยบริการ</a>
+        <a href="#admin-section" data-nav-target="admin-section">จัดการข้อมูล</a>
       </nav>
     </aside>
 
@@ -175,6 +176,41 @@
           </table>
         </div>
       </section>
+
+      <section id="admin-section" class="panel table-panel admin-panel">
+        <div class="panel-title">
+          <div>
+            <h2>จัดการข้อมูล</h2>
+            <span id="adminStatus">กรอก admin token เพื่อดูและลบข้อมูลรายหน่วยบริการ</span>
+          </div>
+        </div>
+        <div class="admin-toolbar">
+          <input id="adminToken" type="password" autocomplete="off" placeholder="Admin token" aria-label="admin token" />
+          <button id="loadAdminButton" type="button">Load</button>
+          <label class="admin-check">
+            <input id="deleteFacilityMaster" type="checkbox" />
+            <span>ลบ master facility ด้วย</span>
+          </label>
+        </div>
+        <div class="table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>รหัส</th>
+                <th>หน่วยบริการ</th>
+                <th>วันข้อมูล</th>
+                <th>Visits</th>
+                <th>NCD</th>
+                <th>พิกัด</th>
+                <th>ช่วงวันที่</th>
+                <th>ล่าสุด</th>
+                <th>ลบ</th>
+              </tr>
+            </thead>
+            <tbody id="adminRows"></tbody>
+          </table>
+        </div>
+      </section>
     </main>
 
     <div id="yearOverlay" class="overlay" hidden>
@@ -197,6 +233,6 @@
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="./app.js?v=20260708-ncd-map-2"></script>
+    <script src="./app.js?v=20260708-admin-1"></script>
   </body>
 </html>

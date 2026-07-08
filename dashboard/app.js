@@ -449,6 +449,29 @@ async function fetchJson(url) {
   return response.json();
 }
 
+async function fetchAdminJson(url, options = {}) {
+  const token = document.getElementById("adminToken").value.trim();
+  if (!token) throw new Error("Admin token is required");
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      Authorization: `Bearer ${token}`
+    }
+  });
+  if (!response.ok) {
+    let detail = "";
+    try {
+      const body = await response.json();
+      detail = body.error ? `: ${body.error}` : "";
+    } catch {
+      detail = "";
+    }
+    throw new Error(`API returned ${response.status}${detail}`);
+  }
+  return response.json();
+}
+
 function selectedFacilityId() {
   return document.getElementById("facilityFilter").value;
 }
@@ -523,6 +546,56 @@ function bindSectionNav() {
       history.replaceState(null, "", link.getAttribute("href"));
     });
   });
+}
+
+async function loadAdminFacilities() {
+  const status = document.getElementById("adminStatus");
+  const rows = document.getElementById("adminRows");
+  status.textContent = "Loading";
+  const result = await fetchAdminJson(`${apiBaseUrl}/api/v1/admin/facility-data`);
+  const facilities = result.data || [];
+  rows.innerHTML = "";
+  facilities.forEach((facility) => {
+    const tr = document.createElement("tr");
+    const rangeText = facility.last_report_date
+      ? `${compactDate(facility.first_report_date)}-${compactDate(facility.last_report_date)}`
+      : "-";
+    tr.innerHTML = `
+      <td>${escapeHtml(facility.facility_id)}</td>
+      <td>${escapeHtml(facility.facility_name || "")}</td>
+      <td class="number">${formatNumber(facility.summary_days)}</td>
+      <td class="number">${formatNumber(facility.total_visits)}</td>
+      <td class="number">${formatNumber(facility.ncd_dm_ht_patients)}</td>
+      <td class="number">${formatNumber(facility.location_records)}</td>
+      <td>${rangeText}</td>
+      <td>${formatDateTime(facility.last_received_at)}</td>
+      <td><button class="danger-button" type="button" data-delete-facility="${escapeHtml(facility.facility_id)}">Delete</button></td>
+    `;
+    rows.appendChild(tr);
+  });
+  status.textContent = `${formatNumber(facilities.length)} facilities loaded`;
+}
+
+async function deleteFacilityData(facilityId) {
+  const status = document.getElementById("adminStatus");
+  const confirmation = window.prompt(`Type ${facilityId} to delete data for this facility`);
+  if (confirmation !== facilityId) return;
+
+  const deleteFacility = document.getElementById("deleteFacilityMaster").checked;
+  const params = new URLSearchParams();
+  if (deleteFacility) params.set("delete_facility", "true");
+
+  status.textContent = `Deleting ${facilityId}`;
+  const result = await fetchAdminJson(
+    `${apiBaseUrl}/api/v1/admin/facility-data/${encodeURIComponent(facilityId)}?${params.toString()}`,
+    { method: "DELETE" }
+  );
+  status.textContent =
+    `Deleted ${facilityId}: ${formatNumber(result.summaries_deleted)} summary rows, ` +
+    `${formatNumber(result.locations_deleted)} location rows`;
+  await loadAdminFacilities();
+  await loadFacilityOptions();
+  await loadOverview();
 }
 
 async function loadOverview() {
@@ -697,6 +770,18 @@ document.getElementById("refreshButton").addEventListener("click", () => {
 document.getElementById("facilityFilter").addEventListener("change", () => {
   loadOverview().catch((error) => {
     document.getElementById("statusText").textContent = error.message;
+  });
+});
+document.getElementById("loadAdminButton").addEventListener("click", () => {
+  loadAdminFacilities().catch((error) => {
+    document.getElementById("adminStatus").textContent = error.message;
+  });
+});
+document.getElementById("adminRows").addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-delete-facility]");
+  if (!button) return;
+  deleteFacilityData(button.dataset.deleteFacility).catch((error) => {
+    document.getElementById("adminStatus").textContent = error.message;
   });
 });
 window.addEventListener("resize", () => {

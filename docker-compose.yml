@@ -23,6 +23,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change_this_to_a_long_random_secret}
       JWT_ISSUER: ${JWT_ISSUER:-rpst-etl}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-rpst-central-api}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
     expose:
       - "8080"

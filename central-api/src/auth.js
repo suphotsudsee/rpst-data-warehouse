@@ -25,3 +25,24 @@ export function requireEtlToken(req, res, next) {
     return res.status(401).json({ error: "invalid_token" });
   }
 }
+
+export function requireAdminToken(req, res, next) {
+  const expectedToken = process.env.ADMIN_TOKEN;
+  if (!expectedToken) {
+    return res.status(503).json({ error: "admin_token_not_configured" });
+  }
+
+  const header = req.headers.authorization || "";
+  const [scheme, token] = header.split(" ");
+  const adminToken = token || req.headers["x-admin-token"];
+
+  if ((scheme && scheme !== "Bearer") || !adminToken) {
+    return res.status(401).json({ error: "missing_admin_token" });
+  }
+
+  if (adminToken !== expectedToken) {
+    return res.status(403).json({ error: "invalid_admin_token" });
+  }
+
+  return next();
+}

@@ -296,7 +296,8 @@ button {
 #overview,
 #ncd-section,
 #map-section,
-#facility-section {
+#facility-section,
+#admin-section {
   scroll-margin-top: 18px;
 }
 
@@ -378,6 +379,39 @@ td.number {
 .missing {
   color: var(--red);
   font-weight: 700;
+}
+
+.admin-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.admin-toolbar input[type="password"] {
+  min-width: 260px;
+}
+
+.admin-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.admin-check input {
+  min-height: auto;
+}
+
+.admin-table {
+  min-width: 980px;
+}
+
+.danger-button {
+  background: var(--red);
+  border-color: var(--red);
 }
 
 .overlay {

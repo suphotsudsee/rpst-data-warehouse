@@ -2,7 +2,7 @@ import cors from "cors";
 import express from "express";
 import helmet from "helmet";
 import { z } from "zod";
-import { requireEtlToken } from "./auth.js";
+import { requireAdminToken, requireEtlToken } from "./auth.js";
 import { ensureSchema, pool, query } from "./db.js";
 
 const app = express();
@@ -220,6 +220,98 @@ app.get("/api/v1/facilities", async (_req, res) => {
      ORDER BY facility_name`
   );
   res.json({ data: result.rows });
+});
+
+app.get("/api/v1/admin/facility-data", requireAdminToken, async (_req, res) => {
+  const result = await query(
+    `WITH summary_totals AS (
+       SELECT
+         facility_id,
+         COUNT(DISTINCT report_date)::int AS summary_days,
+         COALESCE(SUM(total_visits), 0)::int AS total_visits,
+         COALESCE(SUM(ncd_dm_ht_patients), 0)::int AS ncd_dm_ht_patients,
+         MIN(report_date) AS first_report_date,
+         MAX(report_date) AS last_report_date,
+         MAX(received_at) AS summary_received_at
+       FROM facility_daily_summaries
+       GROUP BY facility_id
+     ),
+     location_totals AS (
+       SELECT
+         facility_id,
+         COUNT(*)::int AS location_records,
+         MAX(received_at) AS location_received_at
+       FROM ncd_house_locations
+       GROUP BY facility_id
+     )
+     SELECT
+       f.facility_id,
+       f.facility_name,
+       f.district,
+       f.province,
+       COALESCE(s.summary_days, 0)::int AS summary_days,
+       COALESCE(s.total_visits, 0)::int AS total_visits,
+       COALESCE(s.ncd_dm_ht_patients, 0)::int AS ncd_dm_ht_patients,
+       COALESCE(l.location_records, 0)::int AS location_records,
+       s.first_report_date,
+       s.last_report_date,
+       GREATEST(
+         COALESCE(s.summary_received_at, 'epoch'::timestamptz),
+         COALESCE(l.location_received_at, 'epoch'::timestamptz)
+       ) AS last_received_at
+     FROM facilities f
+     LEFT JOIN summary_totals s ON s.facility_id = f.facility_id
+     LEFT JOIN location_totals l ON l.facility_id = f.facility_id
+     ORDER BY f.facility_id`
+  );
+
+  res.json({ data: result.rows });
+});
+
+app.delete("/api/v1/admin/facility-data/:facility_id", requireAdminToken, async (req, res) => {
+  const facilityId = req.params.facility_id;
+  const deleteFacility = req.query.delete_facility === "true";
+  if (!facilityId || facilityId.length > 20) {
+    return res.status(400).json({ error: "invalid_facility_id" });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const locations = await client.query(
+      "DELETE FROM ncd_house_locations WHERE facility_id = $1 RETURNING id",
+      [facilityId]
+    );
+    const summaries = await client.query(
+      "DELETE FROM facility_daily_summaries WHERE facility_id = $1 RETURNING id",
+      [facilityId]
+    );
+    let facilities = { rowCount: 0 };
+    if (deleteFacility) {
+      facilities = await client.query(
+        "DELETE FROM facilities WHERE facility_id = $1 RETURNING facility_id",
+        [facilityId]
+      );
+    }
+    await client.query("COMMIT");
+    res.json({
+      status: "deleted",
+      facility_id: facilityId,
+      summaries_deleted: summaries.rowCount,
+      locations_deleted: locations.rowCount,
+      facility_deleted: facilities.rowCount
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Failed to delete facility data", {
+      facility_id: facilityId,
+      error: error.message,
+      code: error.code
+    });
+    res.status(500).json({ error: "delete_failed" });
+  } finally {
+    client.release();
+  }
 });
 
 app.get("/api/v1/dashboard/overview", async (req, res) => {
