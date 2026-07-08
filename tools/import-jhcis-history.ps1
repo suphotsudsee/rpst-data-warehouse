@@ -453,6 +453,7 @@ $failed = 0
 $locationSent = 0
 $locationFailed = 0
 $locationRecordsSent = 0
+$locationRecordsSkipped = 0
 
 for ($day = $start; $day -le $end; $day = $day.AddDays(1)) {
   $dateText = $day.ToString("yyyy-MM-dd")
@@ -526,11 +527,19 @@ for ($day = $start; $day -le $end; $day = $day.AddDays(1)) {
     $locations = @()
     foreach ($locationRow in $locationRows) {
       if ($null -eq $locationRow) { continue }
+      $latitude = 0.0
+      $longitude = 0.0
+      if ([string]::IsNullOrWhiteSpace($locationRow.patient_key) `
+          -or -not [double]::TryParse(([string]$locationRow.latitude), [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$latitude) `
+          -or -not [double]::TryParse(([string]$locationRow.longitude), [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$longitude)) {
+        $locationRecordsSkipped += 1
+        continue
+      }
       $locations += @{
         patient_hash = New-PatientHash $JwtSecret $FacilityId $locationRow.patient_key
         disease_group = $locationRow.disease_group
-        latitude = [double]::Parse($locationRow.latitude, [Globalization.CultureInfo]::InvariantCulture)
-        longitude = [double]::Parse($locationRow.longitude, [Globalization.CultureInfo]::InvariantCulture)
+        latitude = $latitude
+        longitude = $longitude
         payload = @{}
       }
     }
@@ -571,5 +580,6 @@ for ($day = $start; $day -le $end; $day = $day.AddDays(1)) {
   location_days_with_data = $locationsByDate.Count
   location_days_sent = $locationSent
   location_records_sent = $locationRecordsSent
+  location_records_skipped = $locationRecordsSkipped
   location_failed = $locationFailed
 }
