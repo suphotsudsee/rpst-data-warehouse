@@ -26,6 +26,12 @@ if ([string]::IsNullOrWhiteSpace($WorkDir)) {
 $WorkDir = [System.IO.Path]::GetFullPath($WorkDir)
 New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
 
+$workDrive = [System.IO.DriveInfo]::new([System.IO.Path]::GetPathRoot($WorkDir))
+$minimumFreeBytes = 512MB
+if ($workDrive.AvailableFreeSpace -lt $minimumFreeBytes) {
+  throw "Not enough free disk space for WorkDir '$WorkDir'. Free space: $([Math]::Round($workDrive.AvailableFreeSpace / 1MB, 1)) MB. Use -WorkDir on another drive, for example -WorkDir 'D:\rpst-work'."
+}
+
 function ConvertTo-Base64Url {
   param([byte[]]$Bytes)
   return [Convert]::ToBase64String($Bytes).TrimEnd("=").Replace("+", "-").Replace("/", "_")
