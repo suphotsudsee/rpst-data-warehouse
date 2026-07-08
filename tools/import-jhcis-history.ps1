@@ -144,10 +144,11 @@ function Invoke-MySqlFile {
 
   Set-Content -Path $EnvPath -Value "MYSQL_PWD=$Password" -Encoding ASCII
   try {
+    $dockerSqlFile = Split-Path -Leaf $SqlPath
     & $runner.Command run --rm --env-file $EnvPath -v "${WorkDir}:/work" mysql:8.0 mysql `
       -h $DbHost -P $DbPort -u $DbUser -D $DbName --connect-timeout=20 `
       --batch --raw --default-character-set=utf8 `
-      -e "source /work/jhcis-history-import.sql" > $OutPath 2> $errorPath
+      -e "source /work/$dockerSqlFile" > $OutPath 2> $errorPath
 
     if ($LASTEXITCODE -ne 0) {
       $errorText = if (Test-Path -LiteralPath $errorPath) { Get-Content -Path $errorPath -Raw -Encoding UTF8 } else { "" }
@@ -170,9 +171,11 @@ if ([string]::IsNullOrWhiteSpace($dbPassword)) {
 
 $sqlPath = Join-Path $WorkDir "jhcis-history-import.sql"
 $locationSqlPath = Join-Path $WorkDir "jhcis-history-locations.sql"
+$locationDiagnosticSqlPath = Join-Path $WorkDir "jhcis-history-location-diagnostics.sql"
 $envPath = Join-Path $WorkDir "jhcis-history-mysql.env"
 $outPath = Join-Path $WorkDir "jhcis-history-result.tsv"
 $locationOutPath = Join-Path $WorkDir "jhcis-history-locations.tsv"
+$locationDiagnosticOutPath = Join-Path $WorkDir "jhcis-history-location-diagnostics.tsv"
 
 $sql = @"
 SET @start_date = '$StartDate';
@@ -377,8 +380,8 @@ SELECT DISTINCT
     WHEN dg.diagcode REGEXP '^I1[0-5]' THEN 'HT'
     ELSE 'NCD'
   END AS disease_group,
-  CAST(TRIM(h.ygis) AS DECIMAL(10,7)) AS latitude,
-  CAST(TRIM(h.xgis) AS DECIMAL(10,7)) AS longitude
+  CAST(TRIM(h.xgis) AS DECIMAL(10,7)) AS latitude,
+  CAST(TRIM(h.ygis) AS DECIMAL(10,7)) AS longitude
 FROM visit v
 JOIN visitdiag dg
   ON dg.pcucode = v.pcucode
@@ -396,8 +399,8 @@ WHERE v.visitdate BETWEEN @start_date AND @end_date
   )
   AND TRIM(h.ygis) REGEXP '^-?[0-9]+(\\.[0-9]+)?$'
   AND TRIM(h.xgis) REGEXP '^-?[0-9]+(\\.[0-9]+)?$'
-  AND CAST(TRIM(h.ygis) AS DECIMAL(10,7)) BETWEEN 5 AND 21
-  AND CAST(TRIM(h.xgis) AS DECIMAL(10,7)) BETWEEN 97 AND 106
+  AND CAST(TRIM(h.xgis) AS DECIMAL(10,7)) BETWEEN 5 AND 21
+  AND CAST(TRIM(h.ygis) AS DECIMAL(10,7)) BETWEEN 97 AND 106
 ORDER BY report_date, patient_key, disease_group;
 "@
 
@@ -407,6 +410,11 @@ ORDER BY report_date, patient_key, disease_group;
   $locationLines = Get-Content -Path $locationOutPath -Encoding UTF8
   if ($locationLines.Count -ge 2) {
     $locationHeaders = $locationLines[0] -split "`t"
+    foreach ($requiredHeader in @("report_date", "patient_key", "disease_group", "latitude", "longitude")) {
+      if ($locationHeaders -notcontains $requiredHeader) {
+        throw "Location SQL returned unexpected columns. Missing '$requiredHeader'. Check $locationOutPath and $locationSqlPath."
+      }
+    }
     foreach ($line in $locationLines[1..($locationLines.Count - 1)]) {
       if ([string]::IsNullOrWhiteSpace($line)) { continue }
       $parts = $line -split "`t", $locationHeaders.Count
@@ -420,6 +428,77 @@ ORDER BY report_date, patient_key, disease_group;
       }
       [void]$locationsByDate[$dateKey].Add($record)
     }
+  }
+
+  if ($locationsByDate.Count -eq 0) {
+    $locationDiagnosticSql = @"
+SET @start_date = '$StartDate';
+SET @end_date = '$EndDate';
+
+SELECT 'ncd_visit_patients' AS metric, COUNT(DISTINCT v.pcucodeperson, v.pid) AS value
+FROM visit v
+JOIN visitdiag dg ON dg.pcucode = v.pcucode AND dg.visitno = v.visitno
+WHERE v.visitdate BETWEEN @start_date AND @end_date
+  AND (dg.diagcode REGEXP '^E1[0-4]' OR dg.diagcode REGEXP '^I1[0-5]')
+UNION ALL
+SELECT 'ncd_person_join_patients', COUNT(DISTINCT v.pcucodeperson, v.pid)
+FROM visit v
+JOIN visitdiag dg ON dg.pcucode = v.pcucode AND dg.visitno = v.visitno
+JOIN person p ON p.pcucodeperson = v.pcucodeperson AND p.pid = v.pid
+WHERE v.visitdate BETWEEN @start_date AND @end_date
+  AND (dg.diagcode REGEXP '^E1[0-4]' OR dg.diagcode REGEXP '^I1[0-5]')
+UNION ALL
+SELECT 'ncd_house_join_patients', COUNT(DISTINCT v.pcucodeperson, v.pid)
+FROM visit v
+JOIN visitdiag dg ON dg.pcucode = v.pcucode AND dg.visitno = v.visitno
+JOIN person p ON p.pcucodeperson = v.pcucodeperson AND p.pid = v.pid
+JOIN house h ON h.pcucode = p.pcucodeperson AND h.hcode = p.hcode
+WHERE v.visitdate BETWEEN @start_date AND @end_date
+  AND (dg.diagcode REGEXP '^E1[0-4]' OR dg.diagcode REGEXP '^I1[0-5]')
+UNION ALL
+SELECT 'houses_with_numeric_xy', COUNT(*)
+FROM house h
+WHERE TRIM(h.ygis) REGEXP '^-?[0-9]+(\\.[0-9]+)?$'
+  AND TRIM(h.xgis) REGEXP '^-?[0-9]+(\\.[0-9]+)?$'
+UNION ALL
+SELECT 'ncd_house_numeric_xy_patients', COUNT(DISTINCT v.pcucodeperson, v.pid)
+FROM visit v
+JOIN visitdiag dg ON dg.pcucode = v.pcucode AND dg.visitno = v.visitno
+JOIN person p ON p.pcucodeperson = v.pcucodeperson AND p.pid = v.pid
+JOIN house h ON h.pcucode = p.pcucodeperson AND h.hcode = p.hcode
+WHERE v.visitdate BETWEEN @start_date AND @end_date
+  AND (dg.diagcode REGEXP '^E1[0-4]' OR dg.diagcode REGEXP '^I1[0-5]')
+  AND TRIM(h.ygis) REGEXP '^-?[0-9]+(\\.[0-9]+)?$'
+  AND TRIM(h.xgis) REGEXP '^-?[0-9]+(\\.[0-9]+)?$'
+UNION ALL
+SELECT 'ncd_house_y_lat_x_lng_patients', COUNT(DISTINCT v.pcucodeperson, v.pid)
+FROM visit v
+JOIN visitdiag dg ON dg.pcucode = v.pcucode AND dg.visitno = v.visitno
+JOIN person p ON p.pcucodeperson = v.pcucodeperson AND p.pid = v.pid
+JOIN house h ON h.pcucode = p.pcucodeperson AND h.hcode = p.hcode
+WHERE v.visitdate BETWEEN @start_date AND @end_date
+  AND (dg.diagcode REGEXP '^E1[0-4]' OR dg.diagcode REGEXP '^I1[0-5]')
+  AND TRIM(h.ygis) REGEXP '^-?[0-9]+(\\.[0-9]+)?$'
+  AND TRIM(h.xgis) REGEXP '^-?[0-9]+(\\.[0-9]+)?$'
+  AND CAST(TRIM(h.ygis) AS DECIMAL(10,7)) BETWEEN 5 AND 21
+  AND CAST(TRIM(h.xgis) AS DECIMAL(10,7)) BETWEEN 97 AND 106
+UNION ALL
+SELECT 'ncd_house_x_lat_y_lng_patients', COUNT(DISTINCT v.pcucodeperson, v.pid)
+FROM visit v
+JOIN visitdiag dg ON dg.pcucode = v.pcucode AND dg.visitno = v.visitno
+JOIN person p ON p.pcucodeperson = v.pcucodeperson AND p.pid = v.pid
+JOIN house h ON h.pcucode = p.pcucodeperson AND h.hcode = p.hcode
+WHERE v.visitdate BETWEEN @start_date AND @end_date
+  AND (dg.diagcode REGEXP '^E1[0-4]' OR dg.diagcode REGEXP '^I1[0-5]')
+  AND TRIM(h.ygis) REGEXP '^-?[0-9]+(\\.[0-9]+)?$'
+  AND TRIM(h.xgis) REGEXP '^-?[0-9]+(\\.[0-9]+)?$'
+  AND CAST(TRIM(h.xgis) AS DECIMAL(10,7)) BETWEEN 5 AND 21
+  AND CAST(TRIM(h.ygis) AS DECIMAL(10,7)) BETWEEN 97 AND 106;
+"@
+    Set-Content -Path $locationDiagnosticSqlPath -Value $locationDiagnosticSql -Encoding UTF8
+    Invoke-MySqlFile $locationDiagnosticSqlPath $locationDiagnosticOutPath $dbPassword $envPath
+    Write-Warning "No NCD house location rows returned. Diagnostics written to $locationDiagnosticOutPath"
+    Get-Content -Path $locationDiagnosticOutPath -Encoding UTF8 | ForEach-Object { Write-Warning $_ }
   }
 }
 

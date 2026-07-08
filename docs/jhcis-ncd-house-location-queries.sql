@@ -31,8 +31,8 @@ SELECT DISTINCT
     WHEN d.diagcode REGEXP '^I1[0-5]' THEN 'HT'
     ELSE 'NCD'
   END AS disease_group,
-  CAST(TRIM(h.ygis) AS DECIMAL(10,7)) AS latitude,
-  CAST(TRIM(h.xgis) AS DECIMAL(10,7)) AS longitude
+  CAST(TRIM(h.xgis) AS DECIMAL(10,7)) AS latitude,
+  CAST(TRIM(h.ygis) AS DECIMAL(10,7)) AS longitude
 FROM visit v
 JOIN visitdiag d
   ON d.pcucode = v.pcucode
@@ -50,8 +50,7 @@ WHERE v.visitdate = ?
   )
   AND TRIM(h.ygis) REGEXP '^-?[0-9]+(\\.[0-9]+)?$'
   AND TRIM(h.xgis) REGEXP '^-?[0-9]+(\\.[0-9]+)?$'
-  AND CAST(TRIM(h.ygis) AS DECIMAL(10,7)) BETWEEN 5 AND 21
-  AND CAST(TRIM(h.xgis) AS DECIMAL(10,7)) BETWEEN 97 AND 106;
+  AND CAST(TRIM(h.xgis) AS DECIMAL(10,7)) BETWEEN 5 AND 21
+  AND CAST(TRIM(h.ygis) AS DECIMAL(10,7)) BETWEEN 97 AND 106;
 
--- JHCIS house.xgis is used as longitude and house.ygis is used as latitude.
--- If coordinates look swapped on the map, swap h.ygis/h.xgis in the SELECT.
+-- This JHCIS database stores house.xgis as latitude and house.ygis as longitude.
