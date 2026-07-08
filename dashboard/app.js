@@ -23,6 +23,7 @@ const diseaseColors = {
 
 let ncdMap = null;
 let ncdLocationLayer = null;
+let adminToken = sessionStorage.getItem("rpst_admin_token") || "";
 
 const currentBeYear = new Date().getFullYear() + 543;
 const yearState = {
@@ -450,13 +451,12 @@ async function fetchJson(url) {
 }
 
 async function fetchAdminJson(url, options = {}) {
-  const token = document.getElementById("adminToken").value.trim();
-  if (!token) throw new Error("Admin token is required");
+  if (!adminToken) throw new Error("Admin login required");
   const response = await fetch(url, {
     ...options,
     headers: {
       ...(options.headers || {}),
-      Authorization: `Bearer ${token}`
+      Authorization: `Bearer ${adminToken}`
     }
   });
   if (!response.ok) {
@@ -470,6 +470,12 @@ async function fetchAdminJson(url, options = {}) {
     throw new Error(`API returned ${response.status}${detail}`);
   }
   return response.json();
+}
+
+function setAdminLoggedIn(isLoggedIn) {
+  document.getElementById("admin-section").hidden = !isLoggedIn;
+  document.getElementById("adminNavLink").hidden = !isLoggedIn;
+  document.getElementById("admin-login-section").hidden = isLoggedIn;
 }
 
 function selectedFacilityId() {
@@ -574,6 +580,39 @@ async function loadAdminFacilities() {
     rows.appendChild(tr);
   });
   status.textContent = `${formatNumber(facilities.length)} facilities loaded`;
+}
+
+async function loginAdmin() {
+  const status = document.getElementById("adminLoginStatus");
+  const input = document.getElementById("adminLoginToken");
+  const nextToken = input.value.trim();
+  if (!nextToken) {
+    status.textContent = "Admin token is required";
+    return;
+  }
+
+  const previousToken = adminToken;
+  adminToken = nextToken;
+  status.textContent = "Checking";
+  try {
+    await loadAdminFacilities();
+    sessionStorage.setItem("rpst_admin_token", adminToken);
+    input.value = "";
+    setAdminLoggedIn(true);
+    document.getElementById("admin-section").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (error) {
+    adminToken = previousToken;
+    status.textContent = error.message;
+  }
+}
+
+function logoutAdmin() {
+  adminToken = "";
+  sessionStorage.removeItem("rpst_admin_token");
+  document.getElementById("adminRows").innerHTML = "";
+  document.getElementById("adminStatus").textContent = "Admin signed out";
+  setAdminLoggedIn(false);
+  document.getElementById("admin-login-section").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 async function deleteFacilityData(facilityId) {
@@ -772,6 +811,18 @@ document.getElementById("facilityFilter").addEventListener("change", () => {
     document.getElementById("statusText").textContent = error.message;
   });
 });
+document.getElementById("adminLoginButton").addEventListener("click", () => {
+  loginAdmin().catch((error) => {
+    document.getElementById("adminLoginStatus").textContent = error.message;
+  });
+});
+document.getElementById("adminLoginToken").addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  loginAdmin().catch((error) => {
+    document.getElementById("adminLoginStatus").textContent = error.message;
+  });
+});
+document.getElementById("adminLogoutButton").addEventListener("click", logoutAdmin);
 document.getElementById("loadAdminButton").addEventListener("click", () => {
   loadAdminFacilities().catch((error) => {
     document.getElementById("adminStatus").textContent = error.message;
@@ -790,6 +841,7 @@ window.addEventListener("resize", () => {
 });
 
 updateYearButton();
+setAdminLoggedIn(Boolean(adminToken));
 bindSectionNav();
 Promise.all([loadAvailableYears(), loadFacilityOptions()]).then(loadOverview).catch((error) => {
   document.getElementById("statusText").textContent = error.message;

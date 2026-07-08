@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>RPST NCD Dashboard</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260708-admin-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260708-admin-login-1" />
   </head>
   <body>
     <aside class="sidebar">
@@ -21,7 +21,8 @@
         <a href="#ncd-section" data-nav-target="ncd-section">NCD DM/HT</a>
         <a href="#map-section" data-nav-target="map-section">NCD Map</a>
         <a href="#facility-section" data-nav-target="facility-section">หน่วยบริการ</a>
-        <a href="#admin-section" data-nav-target="admin-section">จัดการข้อมูล</a>
+        <a href="#admin-login-section" data-nav-target="admin-login-section">Admin Login</a>
+        <a id="adminNavLink" href="#admin-section" data-nav-target="admin-section" hidden>จัดการข้อมูล</a>
       </nav>
     </aside>
 
@@ -177,15 +178,28 @@
         </div>
       </section>
 
-      <section id="admin-section" class="panel table-panel admin-panel">
+      <section id="admin-login-section" class="panel admin-login-panel">
         <div class="panel-title">
           <div>
-            <h2>จัดการข้อมูล</h2>
-            <span id="adminStatus">กรอก admin token เพื่อดูและลบข้อมูลรายหน่วยบริการ</span>
+            <h2>Admin Login</h2>
+            <span id="adminLoginStatus">กรอก admin token เพื่อเข้าสู่หน้าจัดการข้อมูล</span>
           </div>
         </div>
         <div class="admin-toolbar">
-          <input id="adminToken" type="password" autocomplete="off" placeholder="Admin token" aria-label="admin token" />
+          <input id="adminLoginToken" type="password" autocomplete="off" placeholder="Admin token" aria-label="admin token" />
+          <button id="adminLoginButton" type="button">Login</button>
+        </div>
+      </section>
+
+      <section id="admin-section" class="panel table-panel admin-panel" hidden>
+        <div class="panel-title">
+          <div>
+            <h2>จัดการข้อมูล</h2>
+            <span id="adminStatus">Admin signed in</span>
+          </div>
+          <button id="adminLogoutButton" type="button">Logout</button>
+        </div>
+        <div class="admin-toolbar">
           <button id="loadAdminButton" type="button">Load</button>
           <label class="admin-check">
             <input id="deleteFacilityMaster" type="checkbox" />
@@ -233,6 +247,6 @@
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="./app.js?v=20260708-admin-1"></script>
+    <script src="./app.js?v=20260708-admin-login-1"></script>
   </body>
 </html>
