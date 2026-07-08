@@ -24,6 +24,12 @@ const diseaseColors = {
 let ncdMap = null;
 let ncdLocationLayer = null;
 let adminToken = sessionStorage.getItem("rpst_admin_token") || "";
+let latestFacilityRows = [];
+
+const facilitySortState = {
+  key: "total_visits",
+  direction: "desc"
+};
 
 const currentBeYear = new Date().getFullYear() + 543;
 const yearState = {
@@ -40,6 +46,25 @@ const compactDate = (value) => new Date(value).toLocaleDateString("th-TH", { mon
 const facilityArea = (facility) => [facility.subdistrict, facility.district, facility.province]
   .filter(Boolean)
   .join(" · ") || "-";
+
+const facilitySortColumns = [
+  { key: "facility_id", type: "text" },
+  { key: "facility_name", type: "text" },
+  { key: "last_report_date", type: "date" },
+  { key: "area", type: "text", getter: facilityArea },
+  { key: "total_visits", type: "number" },
+  { key: "ncd_dm_ht_patients", type: "number" },
+  { key: "ncd_dm_patients", type: "number" },
+  { key: "ncd_ht_patients", type: "number" },
+  { key: "ncd_bp_screened", type: "number" },
+  { key: "ncd_fbs_screened", type: "number" },
+  { key: "missing_diagnosis", type: "number" },
+  { key: "anc_visits", type: "number" },
+  { key: "vaccine_visits", type: "number" },
+  { key: "home_visits", type: "number" },
+  { key: "refer_out", type: "number" },
+  { key: "received_at", type: "date" }
+];
 
 const diseaseGroupLabels = [
   "ไขมันในเลือดสูง",
@@ -641,6 +666,103 @@ async function deleteFacilityData(facilityId) {
   await loadOverview();
 }
 
+function facilitySortColumn(key) {
+  return facilitySortColumns.find((column) => column.key === key) || facilitySortColumns[0];
+}
+
+function facilitySortValue(facility, column) {
+  const value = column.getter ? column.getter(facility) : facility[column.key];
+  if (column.type === "number") return Number(value || 0);
+  if (column.type === "date") {
+    const timestamp = value ? new Date(value).getTime() : 0;
+    return Number.isFinite(timestamp) ? timestamp : 0;
+  }
+  return String(value || "").toLocaleLowerCase("th-TH");
+}
+
+function sortedFacilityRows(facilities) {
+  const column = facilitySortColumn(facilitySortState.key);
+  const multiplier = facilitySortState.direction === "asc" ? 1 : -1;
+  return [...facilities].sort((left, right) => {
+    const leftValue = facilitySortValue(left, column);
+    const rightValue = facilitySortValue(right, column);
+    if (leftValue > rightValue) return multiplier;
+    if (leftValue < rightValue) return -multiplier;
+    return String(left.facility_id || "").localeCompare(String(right.facility_id || ""), "th-TH");
+  });
+}
+
+function updateFacilitySortHeaders() {
+  document.querySelectorAll("[data-facility-sort]").forEach((button) => {
+    const isActive = button.dataset.facilitySort === facilitySortState.key;
+    button.classList.toggle("active", isActive);
+    button.classList.toggle("asc", isActive && facilitySortState.direction === "asc");
+    button.classList.toggle("desc", isActive && facilitySortState.direction === "desc");
+    button.setAttribute("aria-sort", isActive ? (facilitySortState.direction === "asc" ? "ascending" : "descending") : "none");
+  });
+}
+
+function renderFacilityRows(facilities) {
+  const rows = document.getElementById("facilityRows");
+  rows.innerHTML = "";
+  sortedFacilityRows(facilities).forEach((facility) => {
+    const tr = document.createElement("tr");
+    const rangeText = facility.last_report_date
+      ? `${compactDate(facility.first_report_date)}-${compactDate(facility.last_report_date)}`
+      : "เธขเธฑเธเนเธกเนเธกเธตเธเนเธญเธกเธนเธฅ";
+    tr.innerHTML = `
+      <td>${escapeHtml(facility.facility_id)}</td>
+      <td>${escapeHtml(facility.facility_name)}</td>
+      <td class="${facility.last_report_date ? "" : "missing"}">${rangeText}</td>
+      <td>${escapeHtml(facilityArea(facility))}</td>
+      <td class="number">${formatNumber(facility.total_visits)}</td>
+      <td class="number">${formatNumber(facility.ncd_dm_ht_patients)}</td>
+      <td class="number">${formatNumber(facility.ncd_dm_patients)}</td>
+      <td class="number">${formatNumber(facility.ncd_ht_patients)}</td>
+      <td class="number">${formatNumber(facility.ncd_bp_screened)}</td>
+      <td class="number">${formatNumber(facility.ncd_fbs_screened)}</td>
+      <td class="number">${formatNumber(facility.missing_diagnosis)}</td>
+      <td class="number">${formatNumber(facility.anc_visits)}</td>
+      <td class="number">${formatNumber(facility.vaccine_visits)}</td>
+      <td class="number">${formatNumber(facility.home_visits)}</td>
+      <td class="number">${formatNumber(facility.refer_out)}</td>
+      <td>${formatDateTime(facility.received_at)}</td>
+    `;
+    rows.appendChild(tr);
+  });
+  updateFacilitySortHeaders();
+}
+
+function setupFacilitySortHeaders() {
+  const keys = facilitySortColumns.map((column) => column.key);
+  document.querySelectorAll("#facility-section thead th").forEach((header, index) => {
+    const key = keys[index];
+    if (!key || header.querySelector("button")) return;
+    const label = header.textContent.trim();
+    const button = document.createElement("button");
+    button.className = "sort-header";
+    button.type = "button";
+    button.dataset.facilitySort = key;
+    button.textContent = label;
+    header.textContent = "";
+    header.appendChild(button);
+  });
+
+  document.querySelectorAll("[data-facility-sort]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const nextKey = button.dataset.facilitySort;
+      if (facilitySortState.key === nextKey) {
+        facilitySortState.direction = facilitySortState.direction === "asc" ? "desc" : "asc";
+      } else {
+        facilitySortState.key = nextKey;
+        facilitySortState.direction = facilitySortColumn(nextKey).type === "text" ? "asc" : "desc";
+      }
+      renderFacilityRows(latestFacilityRows);
+    });
+  });
+  updateFacilitySortHeaders();
+}
+
 async function loadOverview() {
   const statusText = document.getElementById("statusText");
   const reportDate = document.getElementById("reportDate").value;
@@ -746,6 +868,9 @@ async function loadOverview() {
     rows.appendChild(tr);
   });
 
+  latestFacilityRows = facilities;
+  renderFacilityRows(latestFacilityRows);
+
   statusText.textContent = `${scopeText} · Updated ${new Date().toLocaleTimeString("th-TH")}`;
 }
 
@@ -849,6 +974,7 @@ window.addEventListener("resize", () => {
 updateYearButton();
 setAdminLoggedIn(Boolean(adminToken));
 bindSectionNav();
+setupFacilitySortHeaders();
 Promise.all([loadAvailableYears(), loadFacilityOptions()]).then(loadOverview).catch((error) => {
   document.getElementById("statusText").textContent = error.message;
 });
