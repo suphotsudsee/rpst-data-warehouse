@@ -180,6 +180,7 @@ function Get-SampleMetrics {
       red = 2 + ($seed % 5)
       orange = 3 + ($seed % 7)
       yellow = 5 + ($seed % 9)
+      controlled = 7 + ($seed % 10)
       green = 8 + ($seed % 12)
       white = 12 + ($seed % 16)
     }
@@ -194,7 +195,7 @@ function Get-SampleLocations {
   $rows = @()
   for ($index = 0; $index -lt 16; $index++) {
     $patientKey = "sample-$ReportDate-$index"
-    $colorKeys = @("black", "red", "orange", "yellow", "green", "white")
+    $colorKeys = @("white", "green", "controlled", "yellow", "orange", "red", "black")
     $colorKey = $colorKeys[$index % $colorKeys.Count]
     $rows += @{
       patient_hash = New-PatientHash $Config.JwtSecret $Config.FacilityId $patientKey
@@ -244,6 +245,7 @@ function Get-OdbcMetrics {
       red = Invoke-OptionalOdbcScalar $sql "PingpongRed" $Config.OdbcConnectionString $ReportDate
       orange = Invoke-OptionalOdbcScalar $sql "PingpongOrange" $Config.OdbcConnectionString $ReportDate
       yellow = Invoke-OptionalOdbcScalar $sql "PingpongYellow" $Config.OdbcConnectionString $ReportDate
+      controlled = Invoke-OptionalOdbcScalar $sql "PingpongControlled" $Config.OdbcConnectionString $ReportDate
       green = Invoke-OptionalOdbcScalar $sql "PingpongGreen" $Config.OdbcConnectionString $ReportDate
       white = Invoke-OptionalOdbcScalar $sql "PingpongWhite" $Config.OdbcConnectionString $ReportDate
     }

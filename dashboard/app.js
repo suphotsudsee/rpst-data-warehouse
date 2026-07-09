@@ -8,6 +8,7 @@ const palette = {
   red: "#dc2626",
   orange: "#f97316",
   green: "#16a34a",
+  darkGreen: "#2f7d16",
   purple: "#7c3aed",
   black: "#111827",
   white: "#ffffff",
@@ -30,6 +31,7 @@ const pingpongColors = {
   orange: palette.orange,
   yellow: palette.amber,
   green: palette.green,
+  controlled: palette.darkGreen,
   white: palette.white
 };
 
@@ -385,6 +387,7 @@ function pingpongLabel(colorKey) {
     orange: "สีส้ม",
     yellow: "สีเหลือง",
     green: "สีเขียว",
+    controlled: "คุมได้ดี",
     white: "สีขาว"
   };
   return labels[colorKey] || colorKey;

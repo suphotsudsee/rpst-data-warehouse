@@ -257,11 +257,12 @@ SELECT
   patient_key,
   CASE
     WHEN has_complication = 1 THEN 'black'
-    WHEN COALESCE(max_fbs, 0) >= 183 OR COALESCE(max_sbp, 0) >= 180 THEN 'red'
-    WHEN COALESCE(max_fbs, 0) BETWEEN 155 AND 182 OR COALESCE(max_sbp, 0) BETWEEN 160 AND 179 THEN 'orange'
-    WHEN COALESCE(max_fbs, 0) BETWEEN 126 AND 154 OR COALESCE(max_sbp, 0) BETWEEN 140 AND 159 THEN 'yellow'
-    WHEN COALESCE(max_fbs, 0) BETWEEN 100 AND 125 THEN 'green'
-    WHEN COALESCE(max_fbs, 9999) < 100 AND COALESCE(max_sbp, 9999) < 120 THEN 'white'
+    WHEN COALESCE(max_fbs, 0) >= 183 OR COALESCE(max_hba1c, 0) > 8 OR COALESCE(max_sbp, 0) >= 180 OR COALESCE(max_dbp, 0) >= 110 THEN 'red'
+    WHEN COALESCE(max_fbs, 0) BETWEEN 155 AND 182 OR COALESCE(max_hba1c, 0) BETWEEN 7 AND 7.9 OR COALESCE(max_sbp, 0) BETWEEN 160 AND 179 OR COALESCE(max_dbp, 0) BETWEEN 100 AND 109 THEN 'orange'
+    WHEN COALESCE(max_fbs, 0) BETWEEN 126 AND 154 OR COALESCE(max_sbp, 0) BETWEEN 140 AND 159 OR COALESCE(max_dbp, 0) BETWEEN 90 AND 99 THEN 'yellow'
+    WHEN COALESCE(max_fbs, 9999) <= 125 AND COALESCE(max_sbp, 9999) <= 139 AND COALESCE(max_dbp, 9999) <= 89 THEN 'controlled'
+    WHEN COALESCE(max_fbs, 0) BETWEEN 100 AND 125 OR COALESCE(max_sbp, 0) BETWEEN 121 AND 139 OR COALESCE(max_dbp, 0) BETWEEN 81 AND 89 THEN 'green'
+    WHEN COALESCE(max_fbs, 9999) < 100 AND COALESCE(max_sbp, 9999) <= 120 AND COALESCE(max_dbp, 9999) <= 80 THEN 'white'
     ELSE NULL
   END AS color_key
 FROM (
@@ -275,6 +276,12 @@ FROM (
       ELSE NULL
     END) AS max_sbp,
     MAX(CASE
+      WHEN TRIM(v.pressure) REGEXP '^[0-9]+/[0-9]+$' THEN CAST(SUBSTRING_INDEX(TRIM(v.pressure), '/', -1) AS UNSIGNED)
+      WHEN TRIM(v.pressure2) REGEXP '^[0-9]+/[0-9]+$' THEN CAST(SUBSTRING_INDEX(TRIM(v.pressure2), '/', -1) AS UNSIGNED)
+      ELSE NULL
+    END) AS max_dbp,
+    CAST(NULL AS DECIMAL(4,1)) AS max_hba1c,
+    MAX(CASE
       WHEN dg.diagcode REGEXP '^E1[0-4]\\.[2-8]'
         OR dg.diagcode REGEXP '^N18'
         OR dg.diagcode REGEXP '^N08'
@@ -284,10 +291,10 @@ FROM (
       THEN 1 ELSE 0
     END) AS has_complication
   FROM visit v
-  JOIN visitdiag dm
-    ON dm.pcucode = v.pcucode
-   AND dm.visitno = v.visitno
-   AND dm.diagcode REGEXP '^E1[0-4]'
+  JOIN visitdiag ncd
+    ON ncd.pcucode = v.pcucode
+   AND ncd.visitno = v.visitno
+   AND (ncd.diagcode REGEXP '^E1[0-4]' OR ncd.diagcode REGEXP '^I1[0-5]')
   LEFT JOIN visitdiag dg
     ON dg.pcucode = v.pcucode
    AND dg.visitno = v.visitno
@@ -523,11 +530,12 @@ LEFT JOIN (
     patient_key,
     CASE
       WHEN has_complication = 1 THEN 'black'
-      WHEN COALESCE(max_fbs, 0) >= 183 OR COALESCE(max_sbp, 0) >= 180 THEN 'red'
-      WHEN COALESCE(max_fbs, 0) BETWEEN 155 AND 182 OR COALESCE(max_sbp, 0) BETWEEN 160 AND 179 THEN 'orange'
-      WHEN COALESCE(max_fbs, 0) BETWEEN 126 AND 154 OR COALESCE(max_sbp, 0) BETWEEN 140 AND 159 THEN 'yellow'
-      WHEN COALESCE(max_fbs, 0) BETWEEN 100 AND 125 THEN 'green'
-      WHEN COALESCE(max_fbs, 9999) < 100 AND COALESCE(max_sbp, 9999) < 120 THEN 'white'
+      WHEN COALESCE(max_fbs, 0) >= 183 OR COALESCE(max_hba1c, 0) > 8 OR COALESCE(max_sbp, 0) >= 180 OR COALESCE(max_dbp, 0) >= 110 THEN 'red'
+      WHEN COALESCE(max_fbs, 0) BETWEEN 155 AND 182 OR COALESCE(max_hba1c, 0) BETWEEN 7 AND 7.9 OR COALESCE(max_sbp, 0) BETWEEN 160 AND 179 OR COALESCE(max_dbp, 0) BETWEEN 100 AND 109 THEN 'orange'
+      WHEN COALESCE(max_fbs, 0) BETWEEN 126 AND 154 OR COALESCE(max_sbp, 0) BETWEEN 140 AND 159 OR COALESCE(max_dbp, 0) BETWEEN 90 AND 99 THEN 'yellow'
+      WHEN COALESCE(max_fbs, 9999) <= 125 AND COALESCE(max_sbp, 9999) <= 139 AND COALESCE(max_dbp, 9999) <= 89 THEN 'controlled'
+      WHEN COALESCE(max_fbs, 0) BETWEEN 100 AND 125 OR COALESCE(max_sbp, 0) BETWEEN 121 AND 139 OR COALESCE(max_dbp, 0) BETWEEN 81 AND 89 THEN 'green'
+      WHEN COALESCE(max_fbs, 9999) < 100 AND COALESCE(max_sbp, 9999) <= 120 AND COALESCE(max_dbp, 9999) <= 80 THEN 'white'
       ELSE NULL
     END AS color_key
   FROM (
@@ -541,6 +549,12 @@ LEFT JOIN (
         ELSE NULL
       END) AS max_sbp,
       MAX(CASE
+        WHEN TRIM(v2.pressure) REGEXP '^[0-9]+/[0-9]+$' THEN CAST(SUBSTRING_INDEX(TRIM(v2.pressure), '/', -1) AS UNSIGNED)
+        WHEN TRIM(v2.pressure2) REGEXP '^[0-9]+/[0-9]+$' THEN CAST(SUBSTRING_INDEX(TRIM(v2.pressure2), '/', -1) AS UNSIGNED)
+        ELSE NULL
+      END) AS max_dbp,
+      CAST(NULL AS DECIMAL(4,1)) AS max_hba1c,
+      MAX(CASE
         WHEN dg2.diagcode REGEXP '^E1[0-4]\\.[2-8]'
           OR dg2.diagcode REGEXP '^N18'
           OR dg2.diagcode REGEXP '^N08'
@@ -550,10 +564,10 @@ LEFT JOIN (
         THEN 1 ELSE 0
       END) AS has_complication
     FROM visit v2
-    JOIN visitdiag dm2
-      ON dm2.pcucode = v2.pcucode
-     AND dm2.visitno = v2.visitno
-     AND dm2.diagcode REGEXP '^E1[0-4]'
+    JOIN visitdiag ncd2
+      ON ncd2.pcucode = v2.pcucode
+     AND ncd2.visitno = v2.visitno
+     AND (ncd2.diagcode REGEXP '^E1[0-4]' OR ncd2.diagcode REGEXP '^I1[0-5]')
     LEFT JOIN visitdiag dg2
       ON dg2.pcucode = v2.pcucode
      AND dg2.visitno = v2.visitno
@@ -764,6 +778,7 @@ for ($day = $start; $day -le $end; $day = $day.AddDays(1)) {
         red = IntField "pingpong_red"
         orange = IntField "pingpong_orange"
         yellow = IntField "pingpong_yellow"
+        controlled = IntField "pingpong_controlled"
         green = IntField "pingpong_green"
         white = IntField "pingpong_white"
       }
