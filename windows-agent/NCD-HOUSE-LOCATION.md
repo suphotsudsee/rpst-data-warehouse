@@ -2,6 +2,9 @@
 
 `scripts/RpstEtlAgent.ps1` already supports sending NCD house coordinates.
 
+`NcdHouseLocations` should return `patient_key`, `pcucodeperson`, `pid`, `disease_group`, `latitude`, and `longitude`.
+If it also returns `color_key`, the dashboard can filter the map from the pingpong 7-color cards.
+
 No script change is required if `config.json` contains:
 
 ```json
@@ -19,4 +22,3 @@ For this JHCIS database:
 - `house.ygis` is longitude.
 - `patient_key` is hashed locally by the agent before sending.
 - The agent does not send name, CID, HN, phone, or address.
-

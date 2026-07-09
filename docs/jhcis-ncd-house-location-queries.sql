@@ -19,6 +19,8 @@ FROM house;
 -- 3) Daily NCD house locations for the Windows agent.
 -- Required output columns:
 --   patient_key    local raw key; the agent hashes this before sending
+--   pcucodeperson  JHCIS person facility code
+--   pid            JHCIS local person id
 --   disease_group  display group such as DM or HT
 --   latitude       decimal latitude
 --   longitude      decimal longitude
@@ -26,6 +28,8 @@ FROM house;
 -- Parameter style: ? is report_date in yyyy-MM-dd format.
 SELECT DISTINCT
   CONCAT(v.pcucodeperson, ':', v.pid) AS patient_key,
+  v.pcucodeperson AS pcucodeperson,
+  v.pid AS pid,
   CASE
     WHEN d.diagcode REGEXP '^E1[0-4]' THEN 'DM'
     WHEN d.diagcode REGEXP '^I1[0-5]' THEN 'HT'

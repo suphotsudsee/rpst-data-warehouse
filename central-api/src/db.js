@@ -82,6 +82,8 @@ export async function ensureSchema() {
       facility_id VARCHAR(20) NOT NULL REFERENCES facilities(facility_id),
       report_date DATE NOT NULL,
       patient_hash TEXT NOT NULL,
+      pcucodeperson CHAR(5) NOT NULL DEFAULT '',
+      pid INTEGER NOT NULL DEFAULT 0,
       disease_group VARCHAR(50) NOT NULL,
       latitude NUMERIC(10,7) NOT NULL,
       longitude NUMERIC(10,7) NOT NULL,
@@ -90,6 +92,12 @@ export async function ensureSchema() {
       payload JSONB NOT NULL DEFAULT '{}'::jsonb,
       UNIQUE (facility_id, report_date, patient_hash, disease_group)
     )
+  `);
+
+  await query(`
+    ALTER TABLE ncd_house_locations
+      ADD COLUMN IF NOT EXISTS pcucodeperson CHAR(5) NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS pid INTEGER NOT NULL DEFAULT 0
   `);
 
   await query(`

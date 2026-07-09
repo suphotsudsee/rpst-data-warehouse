@@ -198,6 +198,8 @@ function Get-SampleLocations {
     $colorKey = $colorKeys[$index % $colorKeys.Count]
     $rows += @{
       patient_hash = New-PatientHash $Config.JwtSecret $Config.FacilityId $patientKey
+      pcucodeperson = $Config.FacilityId
+      pid = $index + 1
       disease_group = $(if ($index % 2 -eq 0) { "DM" } else { "HT" })
       latitude = [Math]::Round($baseLat + (($index % 4) * 0.006), 7)
       longitude = [Math]::Round($baseLng + ([Math]::Floor($index / 4) * 0.006), 7)
@@ -286,6 +288,16 @@ function Get-OdbcLocations {
       $diseaseGroup = [string]$row["disease_group"]
     }
 
+    $pcucodeperson = ""
+    if ($row.Table.Columns.Contains("pcucodeperson") -and -not [string]::IsNullOrWhiteSpace([string]$row["pcucodeperson"])) {
+      $pcucodeperson = [string]$row["pcucodeperson"]
+    }
+
+    $pid = 0
+    if ($row.Table.Columns.Contains("pid")) {
+      [int]::TryParse(([string]$row["pid"]), [ref]$pid) | Out-Null
+    }
+
     $payload = @{}
     if ($row.Table.Columns.Contains("color_key") -and -not [string]::IsNullOrWhiteSpace([string]$row["color_key"])) {
       $payload.color_key = [string]$row["color_key"]
@@ -293,6 +305,8 @@ function Get-OdbcLocations {
 
     $rows += @{
       patient_hash = New-PatientHash $Config.JwtSecret $Config.FacilityId $patientKey
+      pcucodeperson = $pcucodeperson
+      pid = $pid
       disease_group = $diseaseGroup
       latitude = $latitude
       longitude = $longitude

@@ -44,6 +44,8 @@ CREATE TABLE IF NOT EXISTS ncd_house_locations (
   facility_id VARCHAR(20) NOT NULL REFERENCES facilities(facility_id),
   report_date DATE NOT NULL,
   patient_hash TEXT NOT NULL,
+  pcucodeperson CHAR(5) NOT NULL DEFAULT '',
+  pid INTEGER NOT NULL DEFAULT 0,
   disease_group VARCHAR(50) NOT NULL,
   latitude NUMERIC(10,7) NOT NULL,
   longitude NUMERIC(10,7) NOT NULL,

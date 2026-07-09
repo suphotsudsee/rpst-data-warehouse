@@ -39,6 +39,8 @@ const summarySchema = z.object({
 
 const locationItemSchema = z.object({
   patient_hash: z.string().min(16).max(128),
+  pcucodeperson: z.string().max(5).default(""),
+  pid: z.number().int().nonnegative().default(0),
   disease_group: z.string().min(1).max(50),
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
@@ -176,11 +178,13 @@ app.post("/api/v1/etl/ncd-house-locations", requireEtlToken, async (req, res) =>
     for (const item of data.locations) {
       await client.query(
         `INSERT INTO ncd_house_locations (
-           facility_id, report_date, patient_hash, disease_group,
+           facility_id, report_date, patient_hash, pcucodeperson, pid, disease_group,
            latitude, longitude, source_generated_at, payload
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          ON CONFLICT (facility_id, report_date, patient_hash, disease_group) DO UPDATE SET
+           pcucodeperson = EXCLUDED.pcucodeperson,
+           pid = EXCLUDED.pid,
            latitude = EXCLUDED.latitude,
            longitude = EXCLUDED.longitude,
            source_generated_at = EXCLUDED.source_generated_at,
@@ -190,6 +194,8 @@ app.post("/api/v1/etl/ncd-house-locations", requireEtlToken, async (req, res) =>
           data.facility_id,
           data.report_date,
           item.patient_hash,
+          item.pcucodeperson,
+          item.pid,
           item.disease_group,
           item.latitude,
           item.longitude,
@@ -601,6 +607,8 @@ app.get("/api/v1/dashboard/ncd-house-locations", async (req, res) => {
          f.facility_name,
          l.report_date,
          l.patient_hash,
+         TRIM(l.pcucodeperson) AS pcucodeperson,
+         l.pid,
          l.disease_group,
          l.payload->>'color_key' AS color_key,
          l.latitude::float AS latitude,
@@ -616,6 +624,8 @@ app.get("/api/v1/dashboard/ncd-house-locations", async (req, res) => {
          facility_name,
          MAX(report_date) OVER (PARTITION BY facility_id, patient_hash) AS report_date,
          patient_hash,
+         FIRST_VALUE(pcucodeperson) OVER (PARTITION BY facility_id, patient_hash ORDER BY report_date DESC) AS pcucodeperson,
+         FIRST_VALUE(pid) OVER (PARTITION BY facility_id, patient_hash ORDER BY report_date DESC) AS pid,
          CASE
            WHEN BOOL_OR(disease_group = 'DM') OVER (PARTITION BY facility_id, patient_hash)
             AND BOOL_OR(disease_group = 'HT') OVER (PARTITION BY facility_id, patient_hash)
@@ -636,6 +646,8 @@ app.get("/api/v1/dashboard/ncd-house-locations", async (req, res) => {
        facility_id,
        facility_name,
        report_date,
+       pcucodeperson,
+       pid,
        disease_group,
        color_key,
        latitude,

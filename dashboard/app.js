@@ -534,6 +534,7 @@ function renderMapLocations(locationResult, scopeText, selectedColorKey = "") {
       .bindPopup(`
         <strong>${escapeHtml(selectedColorKey ? pingpongLabel(row.color_key || selectedColorKey) : row.disease_group)}</strong><br>
         ${selectedColorKey ? `${escapeHtml(row.disease_group)}<br>` : ""}
+        ${row.pcucodeperson || row.pid ? `${escapeHtml(row.pcucodeperson || "")}:${escapeHtml(row.pid || "")}<br>` : ""}
         ${escapeHtml(row.facility_name || row.facility_id)}<br>
         ${escapeHtml(row.report_date)}
       `)

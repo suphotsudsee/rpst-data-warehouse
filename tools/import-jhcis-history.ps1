@@ -497,6 +497,8 @@ SET @end_date = '$EndDate';
 SELECT DISTINCT
   DATE_FORMAT(v.visitdate, '%Y-%m-%d') AS report_date,
   CONCAT(v.pcucodeperson, ':', v.pid) AS patient_key,
+  v.pcucodeperson,
+  v.pid,
   CASE
     WHEN dg.diagcode REGEXP '^E1[0-4]' THEN 'DM'
     WHEN dg.diagcode REGEXP '^I1[0-5]' THEN 'HT'
@@ -797,6 +799,8 @@ for ($day = $start; $day -le $end; $day = $day.AddDays(1)) {
       }
       $locations += @{
         patient_hash = New-PatientHash $JwtSecret $EffectiveFacilityId $locationRow.patient_key
+        pcucodeperson = $locationRow.pcucodeperson
+        pid = [int]$locationRow.pid
         disease_group = $locationRow.disease_group
         latitude = $latitude
         longitude = $longitude
