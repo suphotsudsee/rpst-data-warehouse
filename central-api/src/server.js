@@ -576,6 +576,7 @@ app.get("/api/v1/dashboard/ncd-house-locations", async (req, res) => {
   const endDate = typeof req.query.end_date === "string" ? req.query.end_date : null;
   const facilityId = typeof req.query.facility_id === "string" && req.query.facility_id ? req.query.facility_id : null;
   const diseaseGroup = typeof req.query.disease_group === "string" && req.query.disease_group ? req.query.disease_group : null;
+  const colorKey = typeof req.query.color_key === "string" && req.query.color_key ? req.query.color_key : null;
 
   if (!startDate || !endDate) {
     return res.status(400).json({ error: "start_date_and_end_date_required" });
@@ -589,6 +590,9 @@ app.get("/api/v1/dashboard/ncd-house-locations", async (req, res) => {
   if (diseaseGroup) {
     filters.push(`l.disease_group = $${params.push(diseaseGroup)}`);
   }
+  if (colorKey) {
+    filters.push(`l.payload->>'color_key' = $${params.push(colorKey)}`);
+  }
 
   const result = await query(
     `WITH selected_diseases AS (
@@ -598,6 +602,7 @@ app.get("/api/v1/dashboard/ncd-house-locations", async (req, res) => {
          l.report_date,
          l.patient_hash,
          l.disease_group,
+         l.payload->>'color_key' AS color_key,
          l.latitude::float AS latitude,
          l.longitude::float AS longitude
        FROM ncd_house_locations l
@@ -619,8 +624,9 @@ app.get("/api/v1/dashboard/ncd-house-locations", async (req, res) => {
              THEN 'DM'
            WHEN BOOL_OR(disease_group = 'HT') OVER (PARTITION BY facility_id, patient_hash)
              THEN 'HT'
-           ELSE MIN(disease_group) OVER (PARTITION BY facility_id, patient_hash)
+         ELSE MIN(disease_group) OVER (PARTITION BY facility_id, patient_hash)
          END AS disease_group,
+         FIRST_VALUE(color_key) OVER (PARTITION BY facility_id, patient_hash ORDER BY report_date DESC) AS color_key,
          FIRST_VALUE(latitude) OVER (PARTITION BY facility_id, patient_hash ORDER BY report_date DESC) AS latitude,
          FIRST_VALUE(longitude) OVER (PARTITION BY facility_id, patient_hash ORDER BY report_date DESC) AS longitude
        FROM selected_diseases
@@ -631,6 +637,7 @@ app.get("/api/v1/dashboard/ncd-house-locations", async (req, res) => {
        facility_name,
        report_date,
        disease_group,
+       color_key,
        latitude,
        longitude,
        COUNT(*) OVER ()::int AS total_locations

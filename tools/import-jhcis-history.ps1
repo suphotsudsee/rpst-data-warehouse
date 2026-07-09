@@ -502,6 +502,7 @@ SELECT DISTINCT
     WHEN dg.diagcode REGEXP '^I1[0-5]' THEN 'HT'
     ELSE 'NCD'
   END AS disease_group,
+  colored.color_key,
   CAST(TRIM(h.xgis) AS DECIMAL(10,7)) AS latitude,
   CAST(TRIM(h.ygis) AS DECIMAL(10,7)) AS longitude
 FROM visit v
@@ -514,6 +515,55 @@ JOIN person p
 JOIN house h
   ON h.pcucode = p.pcucodeperson
  AND h.hcode = p.hcode
+LEFT JOIN (
+  SELECT
+    report_date,
+    patient_key,
+    CASE
+      WHEN has_complication = 1 THEN 'black'
+      WHEN COALESCE(max_fbs, 0) >= 183 OR COALESCE(max_sbp, 0) >= 180 THEN 'red'
+      WHEN COALESCE(max_fbs, 0) BETWEEN 155 AND 182 OR COALESCE(max_sbp, 0) BETWEEN 160 AND 179 THEN 'orange'
+      WHEN COALESCE(max_fbs, 0) BETWEEN 126 AND 154 OR COALESCE(max_sbp, 0) BETWEEN 140 AND 159 THEN 'yellow'
+      WHEN COALESCE(max_fbs, 0) BETWEEN 100 AND 125 THEN 'green'
+      WHEN COALESCE(max_fbs, 9999) < 100 AND COALESCE(max_sbp, 9999) < 120 THEN 'white'
+      ELSE NULL
+    END AS color_key
+  FROM (
+    SELECT
+      v2.visitdate AS report_date,
+      CONCAT(v2.pcucodeperson, ':', v2.pid) AS patient_key,
+      MAX(CASE WHEN s.bsl IS NOT NULL AND s.bsl > 0 THEN CAST(s.bsl AS UNSIGNED) ELSE NULL END) AS max_fbs,
+      MAX(CASE
+        WHEN TRIM(v2.pressure) REGEXP '^[0-9]+(/[0-9]+)?$' THEN CAST(SUBSTRING_INDEX(TRIM(v2.pressure), '/', 1) AS UNSIGNED)
+        WHEN TRIM(v2.pressure2) REGEXP '^[0-9]+(/[0-9]+)?$' THEN CAST(SUBSTRING_INDEX(TRIM(v2.pressure2), '/', 1) AS UNSIGNED)
+        ELSE NULL
+      END) AS max_sbp,
+      MAX(CASE
+        WHEN dg2.diagcode REGEXP '^E1[0-4]\\.[2-8]'
+          OR dg2.diagcode REGEXP '^N18'
+          OR dg2.diagcode REGEXP '^N08'
+          OR dg2.diagcode REGEXP '^H36'
+          OR dg2.diagcode REGEXP '^L97'
+          OR dg2.diagcode REGEXP '^I7[0-9]'
+        THEN 1 ELSE 0
+      END) AS has_complication
+    FROM visit v2
+    JOIN visitdiag dm2
+      ON dm2.pcucode = v2.pcucode
+     AND dm2.visitno = v2.visitno
+     AND dm2.diagcode REGEXP '^E1[0-4]'
+    LEFT JOIN visitdiag dg2
+      ON dg2.pcucode = v2.pcucode
+     AND dg2.visitno = v2.visitno
+    LEFT JOIN ncd_person_ncd_screen s
+      ON s.pid = v2.pid
+     AND s.screen_date = v2.visitdate
+    WHERE v2.visitdate BETWEEN @start_date AND @end_date
+    GROUP BY v2.visitdate, v2.pcucodeperson, v2.pid
+  ) patient_day
+) colored
+  ON colored.report_date = v.visitdate
+ AND colored.patient_key = CONCAT(v.pcucodeperson, ':', v.pid)
 WHERE v.visitdate BETWEEN @start_date AND @end_date
   AND (
     dg.diagcode REGEXP '^E1[0-4]'
@@ -750,7 +800,7 @@ for ($day = $start; $day -le $end; $day = $day.AddDays(1)) {
         disease_group = $locationRow.disease_group
         latitude = $latitude
         longitude = $longitude
-        payload = @{}
+        payload = $(if ([string]::IsNullOrWhiteSpace($locationRow.color_key)) { @{} } else { @{ color_key = $locationRow.color_key } })
       }
     }
 

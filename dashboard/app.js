@@ -37,6 +37,9 @@ let ncdMap = null;
 let ncdLocationLayer = null;
 let adminToken = sessionStorage.getItem("rpst_admin_token") || "";
 let latestFacilityRows = [];
+let selectedPingpongColor = "";
+let latestMapQueryParams = "";
+let latestMapScopeText = "";
 
 const facilitySortState = {
   key: "total_visits",
@@ -375,6 +378,49 @@ function updateLegend(items) {
   ).join("");
 }
 
+function pingpongLabel(colorKey) {
+  const labels = {
+    black: "สีดำ",
+    red: "สีแดง",
+    orange: "สีส้ม",
+    yellow: "สีเหลือง",
+    green: "สีเขียว",
+    white: "สีขาว"
+  };
+  return labels[colorKey] || colorKey;
+}
+
+async function loadMapForPingpongColor(colorKey, shouldScroll = false) {
+  const status = document.getElementById("mapStatus");
+  if (!latestMapQueryParams) return;
+
+  selectedPingpongColor = selectedPingpongColor === colorKey ? "" : colorKey;
+  document.querySelectorAll(".pingpong-row").forEach((element) => {
+    element.classList.toggle("active", element.dataset.colorKey === selectedPingpongColor);
+  });
+
+  if (status) {
+    status.textContent = "Loading";
+  }
+
+  const params = new URLSearchParams(latestMapQueryParams);
+  if (selectedPingpongColor) {
+    params.set("color_key", selectedPingpongColor);
+  } else {
+    params.delete("color_key");
+  }
+
+  try {
+    const locations = await fetchJson(`${apiBaseUrl}/api/v1/dashboard/ncd-house-locations?${params.toString()}`);
+    renderMapLocations(locations, latestMapScopeText, selectedPingpongColor);
+    if (shouldScroll) {
+      document.getElementById("map-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  } catch {
+    renderMapLocations({ data: [], total_locations: 0, returned_locations: 0, groups: {} }, latestMapScopeText, selectedPingpongColor);
+  }
+}
+
 function renderPingpongSummary(result, scopeText) {
   const totalElement = document.getElementById("pingpongTotal");
   const scopeElement = document.getElementById("pingpongScope");
@@ -390,7 +436,7 @@ function renderPingpongSummary(result, scopeText) {
     const value = Number(row.patients || 0);
     const percent = total > 0 ? Math.round((value / total) * 100) : 0;
     return `
-      <article class="pingpong-row ${escapeHtml(colorKey)}" style="--dot:${pingpongColors[colorKey] || palette.slate}; --bar:${percent}%">
+      <button type="button" class="pingpong-row ${escapeHtml(colorKey)} ${selectedPingpongColor === colorKey ? "active" : ""}" data-color-key="${escapeHtml(colorKey)}" style="--dot:${pingpongColors[colorKey] || palette.slate}; --active:${colorKey === "white" ? "#94a3b8" : (pingpongColors[colorKey] || palette.slate)}; --bar:${percent}%">
         <div class="pingpong-row-main">
           <span class="pingpong-dot"></span>
           <div>
@@ -403,9 +449,13 @@ function renderPingpongSummary(result, scopeText) {
           <span>${formatNumber(percent)}%</span>
         </div>
         <p>${escapeHtml(row.care_advice)}</p>
-      </article>
+      </button>
     `;
   }).join("");
+
+  rowsElement.querySelectorAll(".pingpong-row").forEach((element) => {
+    element.addEventListener("click", () => loadMapForPingpongColor(element.dataset.colorKey || "", true));
+  });
 }
 
 function colorForDiseaseGroup(group) {
@@ -428,11 +478,13 @@ function initNcdMap() {
   ncdLocationLayer = L.layerGroup().addTo(ncdMap);
 }
 
-function renderMapLocations(locationResult, scopeText) {
+function renderMapLocations(locationResult, scopeText, selectedColorKey = "") {
   const status = document.getElementById("mapStatus");
   const legend = document.getElementById("mapLegend");
   const caption = document.getElementById("mapCaption");
-  caption.textContent = `House coordinates for NCD patients · ${scopeText}`;
+  caption.textContent = selectedColorKey
+    ? `House coordinates for NCD patients · ${pingpongLabel(selectedColorKey)} · ${scopeText}`
+    : `House coordinates for NCD patients · ${scopeText}`;
 
   if (typeof L === "undefined") {
     status.textContent = "Map library is unavailable";
@@ -445,15 +497,18 @@ function renderMapLocations(locationResult, scopeText) {
   const rows = locationResult.data || [];
   const groupCounts = {};
   rows.forEach((row) => {
-    groupCounts[row.disease_group] = (groupCounts[row.disease_group] || 0) + 1;
+    const key = selectedColorKey ? (row.color_key || selectedColorKey) : row.disease_group;
+    groupCounts[key] = (groupCounts[key] || 0) + 1;
   });
 
   legend.innerHTML = Object.entries(groupCounts).map(([group, count]) =>
-    `<span style="--dot:${colorForDiseaseGroup(group)}">${escapeHtml(group)} ${formatNumber(count)}</span>`
+    `<span style="--dot:${selectedColorKey ? (pingpongColors[group] || palette.slate) : colorForDiseaseGroup(group)}">${escapeHtml(selectedColorKey ? pingpongLabel(group) : group)} ${formatNumber(count)}</span>`
   ).join("");
 
   if (!rows.length) {
-    status.textContent = "No house coordinates found for the selected range";
+    status.textContent = selectedColorKey
+      ? `No house coordinates found for ${pingpongLabel(selectedColorKey)}`
+      : "No house coordinates found for the selected range";
     ncdMap.setView([13.7563, 100.5018], 8);
     setTimeout(() => ncdMap.invalidateSize(), 0);
     return;
@@ -464,16 +519,21 @@ function renderMapLocations(locationResult, scopeText) {
     const lat = Number(row.latitude);
     const lng = Number(row.longitude);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    const markerColor = selectedColorKey
+      ? (pingpongColors[row.color_key || selectedColorKey] || palette.slate)
+      : colorForDiseaseGroup(row.disease_group);
+    const markerStroke = markerColor === palette.white ? palette.slate : markerColor;
     bounds.push([lat, lng]);
     L.circleMarker([lat, lng], {
       radius: 6,
-      color: colorForDiseaseGroup(row.disease_group),
-      fillColor: colorForDiseaseGroup(row.disease_group),
+      color: markerStroke,
+      fillColor: markerColor,
       fillOpacity: 0.74,
       weight: 1
     })
       .bindPopup(`
-        <strong>${escapeHtml(row.disease_group)}</strong><br>
+        <strong>${escapeHtml(selectedColorKey ? pingpongLabel(row.color_key || selectedColorKey) : row.disease_group)}</strong><br>
+        ${selectedColorKey ? `${escapeHtml(row.disease_group)}<br>` : ""}
         ${escapeHtml(row.facility_name || row.facility_id)}<br>
         ${escapeHtml(row.report_date)}
       `)
@@ -836,6 +896,9 @@ async function loadOverview() {
   const reportedFacilities = facilities.filter((facility) => Number(facility.reported_days || 0) > 0).length;
   const expectedFacilities = facilities.length || 90;
   const scopeText = [facilityText, reportDate ? "เฉพาะวันที่เลือก" : range.label].filter(Boolean).join(" · ");
+  selectedPingpongColor = "";
+  latestMapQueryParams = queryParams;
+  latestMapScopeText = scopeText;
 
   document.getElementById("reportedFacilities").textContent =
     `${formatNumber(reportedFacilities)}/${formatNumber(expectedFacilities)}`;

@@ -194,12 +194,14 @@ function Get-SampleLocations {
   $rows = @()
   for ($index = 0; $index -lt 16; $index++) {
     $patientKey = "sample-$ReportDate-$index"
+    $colorKeys = @("black", "red", "orange", "yellow", "green", "white")
+    $colorKey = $colorKeys[$index % $colorKeys.Count]
     $rows += @{
       patient_hash = New-PatientHash $Config.JwtSecret $Config.FacilityId $patientKey
       disease_group = $(if ($index % 2 -eq 0) { "DM" } else { "HT" })
       latitude = [Math]::Round($baseLat + (($index % 4) * 0.006), 7)
       longitude = [Math]::Round($baseLng + ([Math]::Floor($index / 4) * 0.006), 7)
-      payload = @{}
+      payload = @{ color_key = $colorKey }
     }
   }
   return $rows
@@ -284,12 +286,17 @@ function Get-OdbcLocations {
       $diseaseGroup = [string]$row["disease_group"]
     }
 
+    $payload = @{}
+    if ($row.Table.Columns.Contains("color_key") -and -not [string]::IsNullOrWhiteSpace([string]$row["color_key"])) {
+      $payload.color_key = [string]$row["color_key"]
+    }
+
     $rows += @{
       patient_hash = New-PatientHash $Config.JwtSecret $Config.FacilityId $patientKey
       disease_group = $diseaseGroup
       latitude = $latitude
       longitude = $longitude
-      payload = @{}
+      payload = $payload
     }
   }
   return $rows

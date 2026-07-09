@@ -298,6 +298,19 @@ button {
   padding: 12px;
   min-height: 130px;
   background: #ffffff;
+  appearance: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  width: 100%;
+}
+
+.pingpong-row.active,
+.pingpong-row:focus-visible {
+  border-color: var(--active, var(--dot));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--active, var(--dot)) 18%, transparent);
+  outline: none;
 }
 
 .pingpong-row::before {
