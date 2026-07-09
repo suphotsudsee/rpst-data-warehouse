@@ -280,9 +280,9 @@ FROM (
       WHEN TRIM(v.pressure2) REGEXP '^[0-9]+/[0-9]+$' THEN CAST(SUBSTRING_INDEX(TRIM(v.pressure2), '/', -1) AS UNSIGNED)
       ELSE NULL
     END) AS max_dbp,
-    CAST(NULL AS DECIMAL(4,1)) AS max_hba1c,
+    MAX(CASE WHEN hb.labresultdigit IS NOT NULL AND hb.labresultdigit > 0 THEN hb.labresultdigit ELSE NULL END) AS max_hba1c,
     MAX(CASE
-      WHEN dg.diagcode REGEXP '^E1[0-4]\\.[2-8]'
+      WHEN dg.diagcode REGEXP '^E1[0-4]\\\\.[2-8]'
         OR dg.diagcode REGEXP '^N18'
         OR dg.diagcode REGEXP '^N08'
         OR dg.diagcode REGEXP '^H36'
@@ -300,7 +300,13 @@ FROM (
    AND dg.visitno = v.visitno
   LEFT JOIN ncd_person_ncd_screen s
     ON s.pid = v.pid
+   AND s.pcucode = v.pcucodeperson
    AND s.screen_date = v.visitdate
+  LEFT JOIN visitlabchcyhembmsse hb
+    ON hb.pcucodeperson = v.pcucodeperson
+   AND hb.pid = v.pid
+   AND hb.datecheck = v.visitdate
+   AND hb.labcode = 'CH99'
   WHERE v.visitdate BETWEEN @start_date AND @end_date
   GROUP BY v.visitdate, v.pcucodeperson, v.pid
 ) classified;
@@ -542,40 +548,52 @@ LEFT JOIN (
     SELECT
       v2.visitdate AS report_date,
       CONCAT(v2.pcucodeperson, ':', v2.pid) AS patient_key,
-      MAX(CASE WHEN s.bsl IS NOT NULL AND s.bsl > 0 THEN CAST(s.bsl AS UNSIGNED) ELSE NULL END) AS max_fbs,
+      MAX(CASE WHEN s.bsl IS NOT NULL AND s.bsl > 0 THEN CAST(s.bsl AS DECIMAL(10,1)) ELSE NULL END) AS max_fbs,
       MAX(CASE
-        WHEN TRIM(v2.pressure) REGEXP '^[0-9]+(/[0-9]+)?$' THEN CAST(SUBSTRING_INDEX(TRIM(v2.pressure), '/', 1) AS UNSIGNED)
-        WHEN TRIM(v2.pressure2) REGEXP '^[0-9]+(/[0-9]+)?$' THEN CAST(SUBSTRING_INDEX(TRIM(v2.pressure2), '/', 1) AS UNSIGNED)
+        WHEN TRIM(v2.pressure) REGEXP '^[0-9]+/[0-9]+$' THEN CAST(SUBSTRING_INDEX(TRIM(v2.pressure), '/', 1) AS DECIMAL(5,1))
+        WHEN TRIM(v2.pressure2) REGEXP '^[0-9]+/[0-9]+$' THEN CAST(SUBSTRING_INDEX(TRIM(v2.pressure2), '/', 1) AS DECIMAL(5,1))
+        WHEN TRIM(v2.pressure) REGEXP '^[0-9]+$' THEN CAST(TRIM(v2.pressure) AS DECIMAL(5,1))
         ELSE NULL
       END) AS max_sbp,
       MAX(CASE
-        WHEN TRIM(v2.pressure) REGEXP '^[0-9]+/[0-9]+$' THEN CAST(SUBSTRING_INDEX(TRIM(v2.pressure), '/', -1) AS UNSIGNED)
-        WHEN TRIM(v2.pressure2) REGEXP '^[0-9]+/[0-9]+$' THEN CAST(SUBSTRING_INDEX(TRIM(v2.pressure2), '/', -1) AS UNSIGNED)
+        WHEN TRIM(v2.pressure) REGEXP '^[0-9]+/[0-9]+$' THEN CAST(SUBSTRING_INDEX(TRIM(v2.pressure), '/', -1) AS DECIMAL(5,1))
+        WHEN TRIM(v2.pressure2) REGEXP '^[0-9]+/[0-9]+$' THEN CAST(SUBSTRING_INDEX(TRIM(v2.pressure2), '/', -1) AS DECIMAL(5,1))
         ELSE NULL
       END) AS max_dbp,
-      CAST(NULL AS DECIMAL(4,1)) AS max_hba1c,
+      MAX(CASE WHEN hb.labresultdigit IS NOT NULL AND hb.labresultdigit > 0 THEN hb.labresultdigit ELSE NULL END) AS max_hba1c,
       MAX(CASE
-        WHEN dg2.diagcode REGEXP '^E1[0-4]\\.[2-8]'
-          OR dg2.diagcode REGEXP '^N18'
-          OR dg2.diagcode REGEXP '^N08'
-          OR dg2.diagcode REGEXP '^H36'
-          OR dg2.diagcode REGEXP '^L97'
-          OR dg2.diagcode REGEXP '^I7[0-9]'
+        WHEN dg.diagcode REGEXP '^E1[0-4]\\\\.[2-8]'
+          OR dg.diagcode REGEXP '^N18'
+          OR dg.diagcode REGEXP '^N08'
+          OR dg.diagcode REGEXP '^H36'
+          OR dg.diagcode REGEXP '^L97'
+          OR dg.diagcode REGEXP '^I7[0-9]'
         THEN 1 ELSE 0
-      END) AS has_complication
-    FROM visit v2
-    JOIN visitdiag ncd2
-      ON ncd2.pcucode = v2.pcucode
-     AND ncd2.visitno = v2.visitno
-     AND (ncd2.diagcode REGEXP '^E1[0-4]' OR ncd2.diagcode REGEXP '^I1[0-5]')
-    LEFT JOIN visitdiag dg2
+      END) AS has_complication,
+      MAX(CASE
+        WHEN TRIM(v2.pressure) REGEXP '^[0-9]+/[0-9]+$' THEN CAST(SUBSTRING_INDEX(TRIM(v2.pressure), '/', -1) AS DECIMAL(5,1))
+        WHEN TRIM(v2.pressure2) REGEXP '^[0-9]+/[0-9]+$' THEN CAST(SUBSTRING_INDEX(TRIM(v2.pressure2), '/', -1) AS DECIMAL(5,1))
+        ELSE NULL
+      END) AS max_dbp
+      FROM visit v2
+      JOIN visitdiag ncd
+      ON ncd.pcucode = v2.pcucode
+      AND ncd.visitno = v2.visitno
+      AND (ncd.diagcode REGEXP '^E1[0-4]' OR ncd.diagcode REGEXP '^I1[0-5]')
+      LEFT JOIN visitdiag dg2
       ON dg2.pcucode = v2.pcucode
-     AND dg2.visitno = v2.visitno
-    LEFT JOIN ncd_person_ncd_screen s
+      AND dg2.visitno = v2.visitno
+      LEFT JOIN ncd_person_ncd_screen s
       ON s.pid = v2.pid
-     AND s.screen_date = v2.visitdate
-    WHERE v2.visitdate BETWEEN @start_date AND @end_date
-    GROUP BY v2.visitdate, v2.pcucodeperson, v2.pid
+      AND s.pcucode = v2.pcucodeperson
+      AND s.screen_date = v2.visitdate
+      LEFT JOIN visitlabchcyhembmsse hb
+      ON hb.pcucodeperson = v2.pcucodeperson
+      AND hb.pid = v2.pid
+      AND hb.datecheck = v2.visitdate
+      AND hb.labcode = 'CH99'
+      WHERE v2.visitdate BETWEEN @start_date AND @end_date
+      GROUP BY v2.visitdate, v2.pcucodeperson, v2.pid
   ) patient_day
 ) colored
   ON colored.report_date = v.visitdate
