@@ -259,6 +259,131 @@ button {
   margin-bottom: 14px;
 }
 
+.pingpong-panel {
+  margin-bottom: 14px;
+  padding: 16px;
+}
+
+.pingpong-total {
+  text-align: right;
+}
+
+.pingpong-total strong,
+.pingpong-total span {
+  display: block;
+}
+
+.pingpong-total strong {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.pingpong-total span {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 5px;
+}
+
+.pingpong-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.pingpong-row {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  min-height: 130px;
+  background: #ffffff;
+}
+
+.pingpong-row::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: var(--dot);
+}
+
+.pingpong-row::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 4px;
+  width: var(--bar);
+  background: var(--dot);
+  opacity: 0.72;
+}
+
+.pingpong-row.white::before,
+.pingpong-row.white::after {
+  border-right: 1px solid #cbd5e1;
+  background: #ffffff;
+}
+
+.pingpong-row-main,
+.pingpong-count {
+  display: flex;
+  align-items: center;
+}
+
+.pingpong-row-main {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pingpong-row-main > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.pingpong-row-main strong,
+.pingpong-row-main span,
+.pingpong-count strong,
+.pingpong-count span {
+  display: block;
+}
+
+.pingpong-row-main strong {
+  font-size: 15px;
+}
+
+.pingpong-row-main span,
+.pingpong-count span,
+.pingpong-row p {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.pingpong-dot {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 50%;
+  background: var(--dot);
+}
+
+.pingpong-count {
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.pingpong-count strong {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.pingpong-row p {
+  margin-top: 10px;
+  line-height: 1.45;
+  white-space: normal;
+}
+
 .map-panel {
   position: relative;
   overflow: hidden;
@@ -295,6 +420,7 @@ button {
 
 #overview,
 #ncd-section,
+#pingpong-section,
 #map-section,
 #facility-section,
 #admin-login-section,
@@ -587,7 +713,8 @@ td.number {
   }
 
   .kpi-grid,
-  .chart-grid {
+  .chart-grid,
+  .pingpong-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -604,7 +731,8 @@ td.number {
   }
 
   .kpi-grid,
-  .chart-grid {
+  .chart-grid,
+  .pingpong-grid {
     grid-template-columns: 1fr;
   }
 

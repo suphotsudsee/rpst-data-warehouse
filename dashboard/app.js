@@ -6,8 +6,11 @@ const palette = {
   slate: "#475569",
   teal: "#0f766e",
   red: "#dc2626",
+  orange: "#f97316",
   green: "#16a34a",
   purple: "#7c3aed",
+  black: "#111827",
+  white: "#ffffff",
   line: "#dfe7f0",
   text: "#172033",
   muted: "#6b768a"
@@ -19,6 +22,15 @@ const diseaseColors = {
   DM_HT: palette.blue,
   NCD: palette.blue,
   OTHER_NCD: palette.slate
+};
+
+const pingpongColors = {
+  black: palette.black,
+  red: palette.red,
+  orange: palette.orange,
+  yellow: palette.amber,
+  green: palette.green,
+  white: palette.white
 };
 
 let ncdMap = null;
@@ -361,6 +373,39 @@ function updateLegend(items) {
   legend.innerHTML = items.map((item) =>
     `<span style="--dot:${item.color}">${escapeHtml(item.label)} ${formatNumber(item.value)}</span>`
   ).join("");
+}
+
+function renderPingpongSummary(result, scopeText) {
+  const totalElement = document.getElementById("pingpongTotal");
+  const scopeElement = document.getElementById("pingpongScope");
+  const rowsElement = document.getElementById("pingpongRows");
+  if (!totalElement || !scopeElement || !rowsElement) return;
+
+  const rows = result.data || [];
+  const total = rows.reduce((sum, row) => sum + Number(row.patients || 0), 0);
+  totalElement.textContent = formatNumber(total);
+  scopeElement.textContent = scopeText;
+  rowsElement.innerHTML = rows.map((row) => {
+    const colorKey = row.color_key || "";
+    const value = Number(row.patients || 0);
+    const percent = total > 0 ? Math.round((value / total) * 100) : 0;
+    return `
+      <article class="pingpong-row ${escapeHtml(colorKey)}" style="--dot:${pingpongColors[colorKey] || palette.slate}; --bar:${percent}%">
+        <div class="pingpong-row-main">
+          <span class="pingpong-dot"></span>
+          <div>
+            <strong>${escapeHtml(row.color_label)}</strong>
+            <span>${escapeHtml(row.risk_level)}</span>
+          </div>
+        </div>
+        <div class="pingpong-count">
+          <strong>${formatNumber(value)}</strong>
+          <span>${formatNumber(percent)}%</span>
+        </div>
+        <p>${escapeHtml(row.care_advice)}</p>
+      </article>
+    `;
+  }).join("");
 }
 
 function colorForDiseaseGroup(group) {
@@ -774,11 +819,13 @@ async function loadOverview() {
   const facilityText = facilitySelect.value ? facilitySelect.options[facilitySelect.selectedIndex].textContent : "";
 
   statusText.textContent = "Loading";
-  const [trends, facilityRange, diseaseGroups, locations] = await Promise.all([
+  const [trends, facilityRange, diseaseGroups, pingpong, locations] = await Promise.all([
     fetchJson(`${apiBaseUrl}/api/v1/dashboard/trends?${queryParams}`),
     fetchJson(`${apiBaseUrl}/api/v1/dashboard/facilities/range?${queryParams}`),
     fetchJson(`${apiBaseUrl}/api/v1/dashboard/disease-groups/range?${queryParams}`)
       .catch(() => ({ data: diseaseGroupLabels.map((label) => ({ disease_label: label, patients: 0 })) })),
+    fetchJson(`${apiBaseUrl}/api/v1/dashboard/pingpong-7color/range?${queryParams}`)
+      .catch(() => ({ data: [] })),
     fetchJson(`${apiBaseUrl}/api/v1/dashboard/ncd-house-locations?${queryParams}`)
       .catch(() => ({ data: [], total_locations: 0, returned_locations: 0, groups: {} }))
   ]);
@@ -838,6 +885,7 @@ async function loadOverview() {
       value: Number(item.patients || 0)
     }))
   );
+  renderPingpongSummary(pingpong, scopeText);
   renderMapLocations(locations, scopeText);
 
   const rows = document.getElementById("facilityRows");

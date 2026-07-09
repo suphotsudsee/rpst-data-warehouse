@@ -175,6 +175,14 @@ function Get-SampleMetrics {
       hypertension = 12 + ($seed % 18)
       copd_emphysema = 0
     }
+    pingpong_7color = @{
+      black = $seed % 3
+      red = 2 + ($seed % 5)
+      orange = 3 + ($seed % 7)
+      yellow = 5 + ($seed % 9)
+      green = 8 + ($seed % 12)
+      white = 12 + ($seed % 16)
+    }
   }
 }
 
@@ -226,6 +234,14 @@ function Get-OdbcMetrics {
       pertussis = Invoke-OptionalOdbcScalar $sql "DiseasePertussis" $Config.OdbcConnectionString $ReportDate
       hypertension = Invoke-OptionalOdbcScalar $sql "DiseaseHypertension" $Config.OdbcConnectionString $ReportDate
       copd_emphysema = Invoke-OptionalOdbcScalar $sql "DiseaseCopdEmphysema" $Config.OdbcConnectionString $ReportDate
+    }
+    pingpong_7color = @{
+      black = Invoke-OptionalOdbcScalar $sql "PingpongBlack" $Config.OdbcConnectionString $ReportDate
+      red = Invoke-OptionalOdbcScalar $sql "PingpongRed" $Config.OdbcConnectionString $ReportDate
+      orange = Invoke-OptionalOdbcScalar $sql "PingpongOrange" $Config.OdbcConnectionString $ReportDate
+      yellow = Invoke-OptionalOdbcScalar $sql "PingpongYellow" $Config.OdbcConnectionString $ReportDate
+      green = Invoke-OptionalOdbcScalar $sql "PingpongGreen" $Config.OdbcConnectionString $ReportDate
+      white = Invoke-OptionalOdbcScalar $sql "PingpongWhite" $Config.OdbcConnectionString $ReportDate
     }
   }
 }
@@ -341,6 +357,7 @@ try {
       schema_version = "1.0"
       generated_by = "rpst-windows-agent"
       disease_groups = $metrics.disease_groups
+      pingpong_7color = $metrics.pingpong_7color
     }
   } | ConvertTo-Json -Depth 5
 

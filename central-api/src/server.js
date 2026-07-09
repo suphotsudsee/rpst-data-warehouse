@@ -527,6 +527,50 @@ app.get("/api/v1/dashboard/disease-groups/range", async (req, res) => {
   res.json({ start_date: startDate, end_date: endDate, data: result.rows });
 });
 
+app.get("/api/v1/dashboard/pingpong-7color/range", async (req, res) => {
+  const startDate = typeof req.query.start_date === "string" ? req.query.start_date : null;
+  const endDate = typeof req.query.end_date === "string" ? req.query.end_date : null;
+  const facilityId = typeof req.query.facility_id === "string" && req.query.facility_id ? req.query.facility_id : null;
+
+  if (!startDate || !endDate) {
+    return res.status(400).json({ error: "start_date_and_end_date_required" });
+  }
+
+  const params = [startDate, endDate];
+  const facilityWhere = facilityId ? ` AND s.facility_id = $${params.push(facilityId)}` : "";
+  const result = await query(
+    `WITH pingpong AS (
+       SELECT
+         item.key,
+         SUM(CASE WHEN item.value ~ '^[0-9]+$' THEN item.value::int ELSE 0 END)::int AS patients
+       FROM facility_daily_summaries s
+       CROSS JOIN LATERAL jsonb_each_text(COALESCE(s.payload->'pingpong_7color', '{}'::jsonb)) AS item(key, value)
+       WHERE s.report_date BETWEEN $1::date AND $2::date
+       ${facilityWhere}
+       GROUP BY item.key
+     )
+     SELECT
+       labels.color_key,
+       labels.color_label,
+       labels.risk_level,
+       labels.care_advice,
+       COALESCE(pingpong.patients, 0)::int AS patients
+     FROM (VALUES
+       ('black', 'สีดำ', 'มีภาวะแทรกซ้อน', 'พบแพทย์/ทีมสหวิชาชีพเร่งด่วน และติดตามภาวะแทรกซ้อนอย่างใกล้ชิด', 1),
+       ('red', 'สีแดง', 'ป่วยระดับ 3', 'พบแพทย์โดยเร็ว ปรับแผนรักษา และติดตามซ้ำถี่ตามนัด', 2),
+       ('orange', 'สีส้ม', 'ป่วยระดับ 2', 'พบแพทย์ทุก 4 สัปดาห์หรือตามนัด พร้อมบันทึกค่าน้ำตาลและความดัน', 3),
+       ('yellow', 'สีเหลือง', 'ป่วยระดับ 1', 'ปรับพฤติกรรม รับยา/ติดตามตามนัด และเฝ้าระวังค่าน้ำตาลกับความดัน', 4),
+       ('green', 'สีเขียว', 'กลุ่มเสี่ยง', 'ให้คำแนะนำปรับพฤติกรรม ควบคุมอาหาร ออกกำลังกาย และติดตามคัดกรอง', 5),
+       ('white', 'สีขาว', 'กลุ่มปกติ', 'ส่งเสริมสุขภาพ คงพฤติกรรมที่ดี และตรวจคัดกรองตามรอบ', 6)
+     ) AS labels(color_key, color_label, risk_level, care_advice, sort_order)
+     LEFT JOIN pingpong ON pingpong.key = labels.color_key
+     ORDER BY labels.sort_order`,
+    params
+  );
+
+  res.json({ start_date: startDate, end_date: endDate, data: result.rows });
+});
+
 app.get("/api/v1/dashboard/ncd-house-locations", async (req, res) => {
   const startDate = typeof req.query.start_date === "string" ? req.query.start_date : null;
   const endDate = typeof req.query.end_date === "string" ? req.query.end_date : null;

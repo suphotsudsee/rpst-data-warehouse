@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>RPST NCD Dashboard</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260708-sort-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260709-pingpong-1" />
   </head>
   <body>
     <aside class="sidebar">
@@ -19,6 +19,7 @@
       <nav>
         <a class="active" href="#overview" data-nav-target="overview">ภาพรวมจังหวัด</a>
         <a href="#ncd-section" data-nav-target="ncd-section">NCD DM/HT</a>
+        <a href="#pingpong-section" data-nav-target="pingpong-section">ปิงปอง 7 สี</a>
         <a href="#map-section" data-nav-target="map-section">แผนที่ NCD</a>
         <a href="#facility-section" data-nav-target="facility-section">หน่วยบริการ</a>
         <a href="#admin-login-section" data-nav-target="admin-login-section">Admin Login</a>
@@ -131,6 +132,20 @@
           </div>
         </div>
         <canvas id="diseaseGroupBar" height="360"></canvas>
+      </section>
+
+      <section id="pingpong-section" class="panel pingpong-panel">
+        <div class="panel-title">
+          <div>
+            <h2>ปิงปองจราจรชีวิต 7 สี</h2>
+            <span>คัดกรองผู้ป่วยเบาหวานตาม FBS, ความดันโลหิต และภาวะแทรกซ้อน</span>
+          </div>
+          <div class="pingpong-total">
+            <strong id="pingpongTotal">0</strong>
+            <span id="pingpongScope">patients</span>
+          </div>
+        </div>
+        <div id="pingpongRows" class="pingpong-grid"></div>
       </section>
 
       <section id="map-section" class="panel map-panel">
@@ -249,6 +264,6 @@
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="./app.js?v=20260708-sort-1"></script>
+    <script src="./app.js?v=20260709-pingpong-1"></script>
   </body>
 </html>
