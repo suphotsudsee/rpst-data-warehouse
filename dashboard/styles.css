@@ -418,6 +418,30 @@ button {
   font-size: 13px;
 }
 
+.leaflet-control-layers {
+  border-radius: 6px;
+  font: 12px/1.35 Arial, sans-serif;
+}
+
+.leaflet-control-layers-toggle {
+  width: 32px;
+  height: 32px;
+  background-size: 18px 18px;
+}
+
+.leaflet-control-layers-expanded {
+  padding: 6px 8px;
+}
+
+.leaflet-control-layers label {
+  margin: 2px 0;
+}
+
+.leaflet-control-layers-selector {
+  margin: 0 5px 0 0;
+  transform: scale(0.9);
+}
+
 .legend.compact {
   justify-content: flex-end;
   margin-top: 0;

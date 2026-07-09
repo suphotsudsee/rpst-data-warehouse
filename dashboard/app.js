@@ -491,7 +491,7 @@ function initNcdMap() {
     },
     null,
     {
-      collapsed: false,
+      collapsed: true,
       position: "topright"
     }
   ).addTo(ncdMap);
