@@ -18,6 +18,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RootDir = Split-Path -Parent $ScriptDir
 if ([string]::IsNullOrWhiteSpace($WorkDir)) {
@@ -127,10 +129,14 @@ function Invoke-MySqlFile {
     $mysqlSqlPath = $SqlPath.Replace("\", "/")
     try {
       $env:MYSQL_PWD = $Password
-      & $runner.Command `
+      $output = & $runner.Command `
         -h $DbHost -P $DbPort -u $DbUser -D $DbName --connect-timeout=20 `
         --batch --raw --default-character-set=utf8 `
-        -e "source $mysqlSqlPath" > $OutPath 2> $errorPath
+        -e "source $mysqlSqlPath" 2>&1
+      $stderr = $output | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }
+      $stdout = $output | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] }
+      if ($stderr) { Write-LinesUtf8NoBom $errorPath $stderr }
+      Write-LinesUtf8NoBom $OutPath $stdout
 
       if ($LASTEXITCODE -ne 0) {
         $errorText = if (Test-Path -LiteralPath $errorPath) { Get-Content -Path $errorPath -Raw -Encoding UTF8 } else { "" }
@@ -151,10 +157,14 @@ function Invoke-MySqlFile {
   Set-Content -Path $EnvPath -Value "MYSQL_PWD=$Password" -Encoding ASCII
   try {
     $dockerSqlFile = Split-Path -Leaf $SqlPath
-    & $runner.Command run --rm --env-file $EnvPath -v "${WorkDir}:/work" mysql:8.0 mysql `
+    $output = & $runner.Command run --rm --env-file $EnvPath -v "${WorkDir}:/work" mysql:8.0 mysql `
       -h $DbHost -P $DbPort -u $DbUser -D $DbName --connect-timeout=20 `
       --batch --raw --default-character-set=utf8 `
-      -e "source /work/$dockerSqlFile" > $OutPath 2> $errorPath
+      -e "source /work/$dockerSqlFile" 2>&1
+    $stderr = $output | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }
+    $stdout = $output | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] }
+    if ($stderr) { Write-LinesUtf8NoBom $errorPath $stderr }
+    Write-LinesUtf8NoBom $OutPath $stdout
 
     if ($LASTEXITCODE -ne 0) {
       $errorText = if (Test-Path -LiteralPath $errorPath) { Get-Content -Path $errorPath -Raw -Encoding UTF8 } else { "" }
@@ -177,6 +187,16 @@ function Set-Utf8NoBomContent {
   )
   $encoding = New-Object System.Text.UTF8Encoding($false)
   [System.IO.File]::WriteAllText($Path, $Value, $encoding)
+}
+
+function Write-LinesUtf8NoBom {
+  param(
+    [string]$Path,
+    $Lines
+  )
+  $encoding = New-Object System.Text.UTF8Encoding($false)
+  $text = ($Lines | Out-String).TrimEnd("`r", "`n")
+  [System.IO.File]::WriteAllText($Path, $text + "`n", $encoding)
 }
 
 $dbPassword = $env:JHCIS_DB_PASSWORD
