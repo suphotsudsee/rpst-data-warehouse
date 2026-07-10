@@ -569,12 +569,7 @@ LEFT JOIN (
           OR dg.diagcode REGEXP '^L97'
           OR dg.diagcode REGEXP '^I7[0-9]'
         THEN 1 ELSE 0
-      END) AS has_complication,
-      MAX(CASE
-        WHEN TRIM(v2.pressure) REGEXP '^[0-9]+/[0-9]+$' THEN CAST(SUBSTRING_INDEX(TRIM(v2.pressure), '/', -1) AS DECIMAL(5,1))
-        WHEN TRIM(v2.pressure2) REGEXP '^[0-9]+/[0-9]+$' THEN CAST(SUBSTRING_INDEX(TRIM(v2.pressure2), '/', -1) AS DECIMAL(5,1))
-        ELSE NULL
-      END) AS max_dbp
+      END) AS has_complication
       FROM visit v2
       JOIN visitdiag ncd
       ON ncd.pcucode = v2.pcucode
