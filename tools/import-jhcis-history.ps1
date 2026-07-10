@@ -562,12 +562,12 @@ LEFT JOIN (
       END) AS max_dbp,
       MAX(CASE WHEN hb.labresultdigit IS NOT NULL AND hb.labresultdigit > 0 THEN hb.labresultdigit ELSE NULL END) AS max_hba1c,
       MAX(CASE
-        WHEN dg.diagcode REGEXP '^E1[0-4]\\\\.[2-8]'
-          OR dg.diagcode REGEXP '^N18'
-          OR dg.diagcode REGEXP '^N08'
-          OR dg.diagcode REGEXP '^H36'
-          OR dg.diagcode REGEXP '^L97'
-          OR dg.diagcode REGEXP '^I7[0-9]'
+        WHEN dg2.diagcode REGEXP '^E1[0-4]\\\\.[2-8]'
+          OR dg2.diagcode REGEXP '^N18'
+          OR dg2.diagcode REGEXP '^N08'
+          OR dg2.diagcode REGEXP '^H36'
+          OR dg2.diagcode REGEXP '^L97'
+          OR dg2.diagcode REGEXP '^I7[0-9]'
         THEN 1 ELSE 0
       END) AS has_complication
       FROM visit v2
