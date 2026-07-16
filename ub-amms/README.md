@@ -53,8 +53,8 @@ docker compose up -d --build
 docker compose ps
 ```
 
-ให้วาง reverse proxy ที่เปิด HTTPS หน้า port `8080` และปิดการเข้าถึง MariaDB จากภายนอก
-ระบบจะรัน Alembic migration ก่อนเริ่ม FastAPI ทุกครั้ง
+ให้กำหนด domain ของ service `frontend` ผ่าน Coolify หรือ reverse proxy และปิดการเข้าถึง
+MariaDB จากภายนอก ระบบจะรัน Alembic migration ก่อนเริ่ม FastAPI ทุกครั้ง
 
 ## Excel Contract
 
