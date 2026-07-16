@@ -1,0 +1,1 @@
+"""UB-AMMS backend application."""
