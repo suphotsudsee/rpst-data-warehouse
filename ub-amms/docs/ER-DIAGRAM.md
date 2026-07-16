@@ -26,6 +26,9 @@ erDiagram
         varchar account_code
         varchar account_name
         text description
+        varchar source_sheet
+        int source_row
+        json source_data
         date effective_date
         date expiry_date
         enum status
@@ -67,5 +70,6 @@ erDiagram
     }
 ```
 
-Business key ของ Mapping คือ `(benefit_code, account_code, effective_date)` และใช้ `version`
-สำหรับ optimistic concurrency control เพื่อป้องกันผู้ใช้เขียนทับข้อมูลกันโดยไม่ตั้งใจ
+`source_data` เก็บข้อมูลต้นฉบับ 29 คอลัมน์จาก `Blueprint_โพธิ์ไทร` โดย canonical fields
+ใช้สำหรับค้นหา, validation และ Master Data API ส่วน `version` ใช้ optimistic concurrency
+control เพื่อป้องกันผู้ใช้เขียนทับข้อมูลกันโดยไม่ตั้งใจ

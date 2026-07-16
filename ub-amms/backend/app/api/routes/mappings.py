@@ -14,6 +14,26 @@ router = APIRouter(prefix="/mappings", tags=["Mappings"])
 editor = require_roles(Role.editor, Role.approver, Role.super_admin)
 
 
+def sync_canonical_fields(item: Mapping) -> None:
+    data = item.source_data or {}
+    if not data:
+        return
+    item.benefit_code = str(data.get("pttype") or item.benefit_code).strip()
+    item.benefit_name = str(data.get("namepttype") or item.benefit_name).strip()
+    item.account_code = str(
+        data.get("รหัสผังบัญชีลูกหนี้_OP")
+        or data.get("รหัสผังบัญชีลูกหนี้_IP")
+        or item.account_code
+        or f"UNMAPPED:{item.benefit_code}"
+    ).strip()
+    item.account_name = str(
+        data.get("ชื่อบัญชี OP")
+        or data.get("ชื่อบัญชี IP")
+        or item.account_name
+        or item.benefit_name
+    ).strip()
+
+
 @router.get("", response_model=MappingPage)
 def list_mappings(
     search: str | None = None,
@@ -56,6 +76,7 @@ def create_mapping(
 ) -> Mapping:
     create_backup(db, user, "before-create")
     item = Mapping(**payload.model_dump(), created_by=user.id, updated_by=user.id)
+    sync_canonical_fields(item)
     db.add(item)
     db.flush()
     write_audit(db, request, user, "create", "mapping", item.id, new_value=serialize_mapping(item))
@@ -88,6 +109,7 @@ def update_mapping(
     changes = payload.model_dump(exclude_unset=True, exclude={"version"})
     for field, value in changes.items():
         setattr(item, field, value)
+    sync_canonical_fields(item)
     item.version += 1
     item.status = MappingStatus.draft
     item.updated_by = user.id

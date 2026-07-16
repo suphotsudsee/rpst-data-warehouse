@@ -58,15 +58,12 @@ MariaDB จากภายนอก ระบบจะรัน Alembic migratio
 
 ## Excel Contract
 
-ไฟล์นำเข้าต้องเป็น `.xlsx` และมีหัวคอลัมน์อย่างน้อย:
+ไฟล์นำเข้าต้องเป็น `.xlsx` และใช้ชีต `Blueprint_โพธิ์ไทร` ซึ่งมี 29 คอลัมน์ตามไฟล์
+Master ต้นฉบับ ตั้งแต่ `namepttype` ถึง `หมายเหตุ`
 
-`ลำดับ`, `รหัสสิทธิ`, `ชื่อสิทธิ`, `รหัสบัญชี`, `ชื่อบัญชี`
-
-คอลัมน์เสริมคือ `รายละเอียด`, `วันที่เริ่มใช้`, `วันที่สิ้นสุด`, `สถานะ`
-
-การทำให้รูปแบบเหมือนไฟล์ต้นฉบับ 100% ต้องนำไฟล์ Excel ต้นฉบับจริงมาเก็บเป็น template
-จากนั้นกำหนด sheet, merged cells, styles, formulas, print area และตำแหน่งข้อมูลใน
-import/export profile เพิ่มเติม โดย engine ปัจจุบันทำ data round-trip และรูปแบบมาตรฐานแล้ว
+ระบบเก็บข้อมูลต้นฉบับครบทุกคอลัมน์ใน `source_data` พร้อม canonical fields สำหรับค้นหา
+และ API การ Export จะใช้ workbook ต้นฉบับเป็น template จึงรักษา reference sheets,
+column widths, styles, filter, hidden columns และ data validation ไว้
 
 ## API หลัก
 

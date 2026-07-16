@@ -17,6 +17,9 @@ export interface Mapping {
   account_code: string;
   account_name: string;
   description: string | null;
+  source_sheet: string | null;
+  source_row: number | null;
+  source_data: Record<string, string | number | null> | null;
   effective_date: string;
   expiry_date: string | null;
   status: MappingStatus;

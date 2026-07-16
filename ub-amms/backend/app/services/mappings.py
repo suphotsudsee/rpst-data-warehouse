@@ -16,6 +16,9 @@ def serialize_mapping(mapping: Mapping) -> dict[str, Any]:
         "account_code": mapping.account_code,
         "account_name": mapping.account_name,
         "description": mapping.description,
+        "source_sheet": mapping.source_sheet,
+        "source_row": mapping.source_row,
+        "source_data": mapping.source_data,
         "effective_date": mapping.effective_date.isoformat(),
         "expiry_date": mapping.expiry_date.isoformat() if mapping.expiry_date else None,
         "status": mapping.status.value,
@@ -52,6 +55,9 @@ def validation_errors(mapping: Mapping) -> list[str]:
             errors.append(f"{field} is required")
     if mapping.expiry_date and mapping.expiry_date < mapping.effective_date:
         errors.append("expiry_date must not be earlier than effective_date")
+    if mapping.source_data:
+        if not str(mapping.source_data.get("namepttype") or "").strip():
+            errors.append("namepttype is required")
     return errors
 
 

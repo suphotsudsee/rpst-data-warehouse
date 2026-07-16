@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     upload_dir: str = "uploads"
     backup_dir: str = "backups"
     max_upload_mb: int = 20
+    excel_template_path: str = "templates/account-mapping-template.xlsx"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

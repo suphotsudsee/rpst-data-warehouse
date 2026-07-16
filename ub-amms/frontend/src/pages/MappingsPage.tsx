@@ -6,6 +6,19 @@ import { api } from "../api/client";
 import type { Mapping } from "../types";
 import { useAuthStore } from "../store/auth";
 
+const sourceHeaders = [
+  "namepttype", "rights", "pttype", "stdcode", "pay", "op56", "inscl", "chkshow",
+  "instypeold", "rightgroup", "chg18", "income_id", "que_group", "sss_export",
+  "j_export", "ins_code", "dept_code_id", "dept_cr_code_id", "dept_code_ip_id",
+  "dept_rf_code_id", "dept_rfo_code_id", "pttype_replace", "รหัสผังบัญชีลูกหนี้_OP",
+  "รหัสผังบัญชีรายได้_OP", "รหัสผังบัญชีลูกหนี้_IP", "รหัสผังบัญชีรายได้_IP",
+  "ชื่อบัญชี OP", "ชื่อบัญชี IP", "หมายเหตุ",
+] as const;
+
+const wideColumns = new Set([
+  "namepttype", "ชื่อบัญชี OP", "ชื่อบัญชี IP", "หมายเหตุ",
+]);
+
 export function MappingsPage() {
   const [rows, setRows] = useState<Mapping[]>([]);
   const [search, setSearch] = useState("");
@@ -24,41 +37,68 @@ export function MappingsPage() {
   useEffect(() => { void load(); }, [load]);
 
   const columns = useMemo<ColDef<Mapping>[]>(() => [
-    { field: "sequence", headerName: "ลำดับ", width: 90, pinned: "left", editable: canEdit },
-    { field: "benefit_code", headerName: "รหัสสิทธิ", width: 145, pinned: "left", editable: canEdit },
-    { field: "benefit_name", headerName: "ชื่อสิทธิ", minWidth: 220, flex: 1, editable: canEdit },
-    { field: "account_code", headerName: "รหัสบัญชี", width: 150, editable: canEdit },
-    { field: "account_name", headerName: "ชื่อบัญชี", minWidth: 240, flex: 1, editable: canEdit },
-    { field: "effective_date", headerName: "วันที่เริ่มใช้", width: 145, editable: canEdit },
-    { field: "expiry_date", headerName: "วันที่สิ้นสุด", width: 145, editable: canEdit },
-    { field: "status", headerName: "สถานะ", width: 130, editable: false },
-    { field: "version", headerName: "Version", width: 100, editable: false },
+    { field: "sequence", headerName: "ลำดับ", width: 90, pinned: "left", editable: false },
+    ...sourceHeaders.map((header) => ({
+      colId: `source_data.${header}`,
+      headerName: header,
+      width: wideColumns.has(header) ? 280 : 135,
+      minWidth: wideColumns.has(header) ? 200 : 100,
+      pinned: header === "namepttype" ? "left" as const : undefined,
+      editable: canEdit,
+      valueGetter: (params: { data?: Mapping }) => params.data?.source_data?.[header] ?? null,
+      valueSetter: (params: { data: Mapping; newValue: string | number | null }) => {
+        params.data.source_data = { ...(params.data.source_data ?? {}), [header]: params.newValue };
+        return true;
+      },
+    })),
+    { field: "status", headerName: "Workflow", width: 130, editable: false, pinned: "right" },
+    { field: "version", headerName: "Version", width: 100, editable: false, pinned: "right" },
   ], [canEdit]);
 
   async function cellChanged(event: CellValueChangedEvent<Mapping>) {
     if (!event.data || event.oldValue === event.newValue) return;
     try {
       const item = event.data;
+      const sourceField = event.colDef.colId?.startsWith("source_data.");
       const { data } = await api.put(`/mappings/${item.id}`, {
-        [event.colDef.field!]: event.newValue,
+        ...(sourceField
+          ? { source_data: item.source_data }
+          : { [event.colDef.field!]: event.newValue }),
         version: item.version,
       });
       event.node.setData(data);
     } catch {
-      event.node.setDataValue(event.colDef.field!, event.oldValue);
+      const sourceKey = event.colDef.colId?.replace("source_data.", "");
+      if (sourceKey && event.data.source_data) {
+        event.data.source_data = { ...event.data.source_data, [sourceKey]: event.oldValue };
+        event.node.setData({ ...event.data });
+      } else if (event.colDef.field) {
+        event.node.setDataValue(event.colDef.field, event.oldValue);
+      }
       alert("บันทึกไม่สำเร็จ กรุณารีเฟรชข้อมูลและลองใหม่");
     }
   }
 
   async function createRow() {
     const today = new Date().toISOString().slice(0, 10);
+    const source_data: Record<string, string | number | null> = Object.fromEntries(
+      sourceHeaders.map((header) => [header, null]),
+    );
+    source_data.namepttype = "รายการใหม่";
+    source_data.pttype = `NEW-${Date.now()}`;
+    source_data.rights = "SHOW";
+    source_data.chkshow = "1";
+    source_data["หมายเหตุ"] = "มีใช้";
     const { data } = await api.post("/mappings", {
       sequence: rows.length + 1,
-      benefit_code: "NEW",
+      benefit_code: source_data.pttype,
       benefit_name: "รายการใหม่",
-      account_code: "NEW",
+      account_code: `UNMAPPED:${source_data.pttype}`,
       account_name: "กรุณาระบุชื่อบัญชี",
       effective_date: today,
+      source_sheet: "Blueprint_โพธิ์ไทร",
+      source_row: rows.length + 2,
+      source_data,
     });
     setRows((current) => [...current, data]);
   }
@@ -66,7 +106,8 @@ export function MappingsPage() {
   async function importFile(file: File) {
     const form = new FormData();
     form.append("file", file);
-    await api.post("/import", form);
+    const { data } = await api.post("/import", form);
+    alert(`นำเข้าสำเร็จ ${data.record_count} รายการ (เพิ่ม ${data.inserted}, อัปเดต ${data.updated})`);
     await load();
   }
 

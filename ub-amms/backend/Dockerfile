@@ -10,6 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY alembic.ini .
 COPY alembic ./alembic
 COPY app ./app
+COPY templates ./templates
 RUN mkdir -p uploads backups && chown -R app:app /app
 USER app
 EXPOSE 8000

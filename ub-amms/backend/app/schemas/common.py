@@ -28,6 +28,9 @@ class MappingBase(BaseModel):
     account_code: str = Field(min_length=1, max_length=50)
     account_name: str = Field(min_length=1, max_length=255)
     description: str | None = None
+    source_sheet: str | None = Field(default=None, max_length=255)
+    source_row: int | None = Field(default=None, ge=2)
+    source_data: dict | None = None
     effective_date: date
     expiry_date: date | None = None
 
@@ -49,6 +52,9 @@ class MappingUpdate(BaseModel):
     account_code: str | None = Field(default=None, min_length=1, max_length=50)
     account_name: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = None
+    source_sheet: str | None = Field(default=None, max_length=255)
+    source_row: int | None = Field(default=None, ge=2)
+    source_data: dict | None = None
     effective_date: date | None = None
     expiry_date: date | None = None
     version: int = Field(ge=1)
